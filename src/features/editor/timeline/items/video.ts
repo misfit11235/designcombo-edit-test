@@ -26,6 +26,8 @@ const EMPTY_FILMSTRIP: Filmstrip = {
   thumbnailsCount: 0,
   widthOnScreen: 0
 };
+const MIN_THUMBNAIL_HEIGHT = 40;
+const THUMBNAIL_PADDING = 8;
 
 interface VideoProps extends TrimmableProps {
   aspectRatio: number;
@@ -79,6 +81,14 @@ class Video extends Trimmable {
   private fallbackSegmentsCount = 0;
   private previewUrl = "";
 
+  private getTrackThumbnailHeight() {
+    const trackHeight =
+      typeof this.height === "number" && this.height > 0
+        ? this.height
+        : MIN_THUMBNAIL_HEIGHT;
+    return Math.max(MIN_THUMBNAIL_HEIGHT, Math.round(trackHeight - THUMBNAIL_PADDING));
+  }
+
   static createControls(): { controls: Record<string, Control> } {
     return { controls: createMediaControls() };
   }
@@ -129,6 +139,7 @@ class Video extends Trimmable {
   }
 
   public initDimensions() {
+    this.thumbnailHeight = this.getTrackThumbnailHeight();
     this.thumbnailWidth = this.thumbnailHeight * this.aspectRatio;
 
     const segmentOptions = calculateThumbnailSegmentLayout(this.thumbnailWidth);
@@ -224,7 +235,7 @@ class Video extends Trimmable {
 
         // Calculate new width maintaining aspect ratio
         const aspectRatio = img.width / img.height;
-        const targetHeight = 40;
+        const targetHeight = this.getTrackThumbnailHeight();
         const targetWidth = Math.round(targetHeight * aspectRatio);
         // Set canvas size and draw resized image
         canvas.height = targetHeight;

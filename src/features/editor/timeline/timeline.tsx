@@ -7,7 +7,7 @@ import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { dispatch, filter, subject } from "@designcombo/events";
 import {
   TIMELINE_BOUNDING_CHANGED,
-  TIMELINE_PREFIX
+  TIMELINE_PREFIX,
 } from "@designcombo/timeline";
 import useStore from "../store/use-store";
 import Playhead from "./playhead";
@@ -23,12 +23,12 @@ import {
   LinealAudioBars,
   RadialAudioBars,
   WaveAudioBars,
-  HillAudioBars
+  HillAudioBars,
 } from "./items";
 import StateManager, { REPLACE_MEDIA } from "@designcombo/state";
 import {
   TIMELINE_OFFSET_CANVAS_LEFT,
-  TIMELINE_OFFSET_CANVAS_RIGHT
+  TIMELINE_OFFSET_CANVAS_RIGHT,
 } from "../constants/constants";
 import { ITrackItem } from "@designcombo/types";
 import PreviewTrackItem from "./items/preview-drag-item";
@@ -47,7 +47,7 @@ CanvasTimeline.registerItems({
   LinealAudioBars,
   RadialAudioBars,
   WaveAudioBars,
-  HillAudioBars
+  HillAudioBars,
 });
 
 const EMPTY_SIZE = { width: 0, height: 0 };
@@ -108,11 +108,11 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       if (scaleScroll >= 0) {
         if (scaleScroll > 1)
           horizontalScrollbar.scrollTo({
-            left: currentPosScroll + scrollDivWidth
+            left: currentPosScroll + scrollDivWidth,
           });
         else
           horizontalScrollbar.scrollTo({
-            left: totalScrollWidth - scrollDivWidth
+            left: totalScrollWidth - scrollDivWidth,
           });
       }
     }
@@ -121,7 +121,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   const onResizeCanvas = (payload: { width: number; height: number }) => {
     setCanvasSize({
       width: payload.width,
-      height: payload.height
+      height: payload.height,
     });
   };
 
@@ -138,7 +138,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       height: containerHeight,
       bounding: {
         width: containerWidth,
-        height: 0
+        height: 0,
       },
       selectionColor: "rgba(0, 216, 214,0.1)",
       selectionBorderColor: "rgba(0, 216, 214,1.0)",
@@ -149,9 +149,10 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       duration,
       spacing: {
         left: TIMELINE_OFFSET_CANVAS_LEFT,
-        right: TIMELINE_OFFSET_CANVAS_RIGHT
+        right: TIMELINE_OFFSET_CANVAS_RIGHT,
       },
       sizesMap: {
+        video: 100,
         caption: 32,
         text: 32,
         audio: 36,
@@ -160,7 +161,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         linealAudioBars: 40,
         radialAudioBars: 40,
         waveAudioBars: 40,
-        hillAudioBars: 40
+        hillAudioBars: 40,
       },
       itemTypes: [
         "text",
@@ -177,7 +178,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         "progressFrame",
         "progressBar",
         "waveAudioBars",
-        "hillAudioBars"
+        "hillAudioBars",
       ],
       acceptsMap: {
         text: ["text", "caption"],
@@ -192,9 +193,9 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         linealAudioBars: ["audio", "linealAudioBars"],
         radialAudioBars: ["audio", "radialAudioBars"],
         waveAudioBars: ["audio", "waveAudioBars"],
-        hillAudioBars: ["audio", "hillAudioBars"]
+        hillAudioBars: ["audio", "hillAudioBars"],
       },
-      guideLineColor: "#ffffff"
+      guideLineColor: "#ffffff",
     });
 
     canvasRef.current = canvas;
@@ -202,7 +203,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     setCanvasSize({ width: containerWidth, height: containerHeight });
     setSize({
       width: containerWidth,
-      height: 0
+      height: 0,
     });
     setTimeline(canvas);
 
@@ -243,7 +244,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         if (bounding) {
           setSize({
             width: bounding.width,
-            height: bounding.height
+            height: bounding.height,
           });
         }
       }
@@ -260,10 +261,10 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       payload: {
         [trackItem.id]: {
           details: {
-            src: "https://cdn.designcombo.dev/videos/demo-video-4.mp4"
-          }
-        }
-      }
+            src: "https://cdn.designcombo.dev/videos/demo-video-4.mp4",
+          },
+        },
+      },
     });
   };
 
@@ -316,7 +317,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       <div className="flex">
         <div
           style={{
-            width: timelineOffsetX
+            width: timelineOffsetX,
           }}
           className="relative flex-none"
         />
@@ -333,7 +334,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
             style={{
               position: "absolute",
               width: "calc(100vw - 40px)",
-              height: "10px"
+              height: "10px",
             }}
             className="ScrollAreaRootH"
             onPointerDown={() => {
@@ -354,7 +355,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
                   width:
                     size.width > canvasSize.width
                       ? size.width + TIMELINE_OFFSET_CANVAS_RIGHT
-                      : size.width
+                      : size.width,
                 }}
                 className="pointer-events-none h-[10px]"
               />
@@ -381,7 +382,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
             style={{
               position: "absolute",
               height: canvasSize.height,
-              width: "10px"
+              width: "10px",
             }}
             className="ScrollAreaRootV"
           >
@@ -395,7 +396,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
                   height:
                     size.height > canvasSize.height
                       ? size.height + 40
-                      : canvasSize.height
+                      : canvasSize.height,
                 }}
                 className="pointer-events-none w-[10px]"
               />
