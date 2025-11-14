@@ -578,7 +578,11 @@ export default function ControlItemHorizontal() {
       const [id] = activeIds;
       const trackItem = trackItemsMap[id];
       if (trackItem) {
-        setTrackItem(trackItem);
+        if (trackItem.type === "video") {
+          setTrackItem(null);
+        } else {
+          setTrackItem(trackItem);
+        }
         setLayoutTrackItem(trackItem);
       } else console.log(transitionsMap[id]);
     } else {

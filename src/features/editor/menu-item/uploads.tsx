@@ -7,7 +7,7 @@ import {
   Image as ImageIcon,
   Video as VideoIcon,
   Loader2,
-  UploadIcon
+  UploadIcon,
 } from "lucide-react";
 import { generateId } from "@designcombo/timeline";
 import { Button } from "@/components/ui/button";
@@ -36,17 +36,17 @@ export const Uploads = () => {
       payload: {
         id: generateId(),
         details: {
-          src: srcVideo
+          src: srcVideo,
         },
         metadata: {
           previewUrl:
-            "https://cdn.designcombo.dev/caption_previews/static_preset1.webp"
-        }
+            "https://cdn.designcombo.dev/caption_previews/static_preset1.webp",
+        },
       },
       options: {
         resourceId: "main",
-        scaleMode: "fit"
-      }
+        scaleMode: "fit",
+      },
     });
   };
 
@@ -59,14 +59,14 @@ export const Uploads = () => {
         type: "image",
         display: {
           from: 0,
-          to: 5000
+          to: 5000,
         },
         details: {
-          src: srcImage
+          src: srcImage,
         },
-        metadata: {}
+        metadata: {},
       },
-      options: {}
+      options: {},
     });
   };
 
@@ -77,22 +77,25 @@ export const Uploads = () => {
         id: generateId(),
         type: "audio",
         details: {
-          src: srcAudio
+          src: srcAudio,
         },
-        metadata: {}
+        metadata: {},
       },
-      options: {}
+      options: {},
     });
   };
 
   const UploadPrompt = () => (
-    <div className="flex items-center justify-center px-4">
+    <div className="flex flex-col space-y-2 items-center justify-center px-4">
       <Button
         className="w-full cursor-pointer"
         onClick={() => setShowUploadModal(true)}
       >
         <UploadIcon className="w-4 h-4" />
         <span className="ml-2">Upload</span>
+      </Button>
+      <Button className="w-full cursor-pointer" variant="secondary">
+        <span className="ml-2">Load selection groups</span>
       </Button>
     </div>
   );
