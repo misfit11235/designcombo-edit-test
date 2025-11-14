@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from "react";
 import { ADD_AUDIO, ADD_IMAGE, ADD_VIDEO } from "@designcombo/state";
 import { dispatch } from "@designcombo/events";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,10 +14,139 @@ import { generateId } from "@designcombo/timeline";
 import { Button } from "@/components/ui/button";
 import useUploadStore from "../store/use-upload-store";
 import ModalUpload from "@/components/modal-upload";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+type SelectionGroup = {
+  id: string;
+  name?: string;
+  timeframes?: unknown;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type NormalizedTimeframe = {
+  label: string;
+  start?: number | string;
+  end?: number | string;
+};
+
+const extractRange = (entry: unknown): { start?: number | string; end?: number | string } => {
+  if (entry === null || entry === undefined) return {};
+  if (Array.isArray(entry)) {
+    return {
+      start: entry[0],
+      end: entry[1],
+    };
+  }
+  if (typeof entry === "object") {
+    const value = entry as Record<string, any>;
+    return {
+      start:
+        value.start ??
+        value.from ??
+        value.timeframe?.start ??
+        value.timeframe?.from ??
+        value[0],
+      end:
+        value.end ??
+        value.to ??
+        value.timeframe?.end ??
+        value.timeframe?.to ??
+        value[1],
+    };
+  }
+  return {};
+};
+
+const parseTimeframes = (value: unknown): NormalizedTimeframe[] => {
+  if (!value) return [];
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parseTimeframes(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry, idx) => {
+      const { start, end } = extractRange(entry);
+      return {
+        label: `Range ${idx + 1}`,
+        start,
+        end,
+      };
+    });
+  }
+
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).map(
+      ([label, entry], idx) => {
+        const { start, end } = extractRange(entry);
+        return {
+          label: label || `Range ${idx + 1}`,
+          start,
+          end,
+        };
+      }
+    );
+  }
+
+  return [];
+};
+
+const formatDateTime = (value?: string) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString();
+};
 
 export const Uploads = () => {
   const { setShowUploadModal, uploads, pendingUploads, activeUploads } =
     useUploadStore();
+  const [selectionModalOpen, setSelectionModalOpen] = useState(false);
+  const [selectionGroups, setSelectionGroups] = useState<SelectionGroup[]>([]);
+  const [selectionGroupsLoading, setSelectionGroupsLoading] = useState(false);
+  const [selectionGroupsError, setSelectionGroupsError] = useState<
+    string | null
+  >(null);
+
+  const fetchSelectionGroups = useCallback(async () => {
+    setSelectionGroupsLoading(true);
+    setSelectionGroupsError(null);
+    try {
+      const response = await fetch("/api/uploads/selection-groups");
+      if (!response.ok) {
+        throw new Error("Unable to fetch selection groups.");
+      }
+      const data = await response.json();
+      const groups = Array.isArray(data) ? data : data ? [data] : [];
+      setSelectionGroups(groups);
+    } catch (error) {
+      setSelectionGroupsError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while loading selection groups."
+      );
+    } finally {
+      setSelectionGroupsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectionModalOpen) {
+      fetchSelectionGroups();
+    }
+  }, [selectionModalOpen, fetchSelectionGroups]);
 
   // Group completed uploads by type
   const videos = uploads.filter(
@@ -85,7 +215,11 @@ export const Uploads = () => {
     });
   };
 
-  const UploadPrompt = () => (
+  const UploadPrompt = ({
+    onLoadSelectionGroups,
+  }: {
+    onLoadSelectionGroups: () => void;
+  }) => (
     <div className="flex flex-col space-y-2 items-center justify-center px-4">
       <Button
         className="w-full cursor-pointer"
@@ -94,10 +228,118 @@ export const Uploads = () => {
         <UploadIcon className="w-4 h-4" />
         <span className="ml-2">Upload</span>
       </Button>
-      <Button className="w-full cursor-pointer" variant="secondary">
+      <Button
+        className="w-full cursor-pointer"
+        variant="secondary"
+        onClick={onLoadSelectionGroups}
+      >
         <span className="ml-2">Load selection groups</span>
       </Button>
     </div>
+  );
+
+  const SelectionGroupsDialog = () => (
+    <Dialog open={selectionModalOpen} onOpenChange={setSelectionModalOpen}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Selection groups</DialogTitle>
+          <DialogDescription>
+            Browse the saved selection groups available for your project.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {selectionGroupsLoading && (
+            <div className="flex items-center justify-center py-6 gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading selection groups…
+            </div>
+          )}
+          {!selectionGroupsLoading && selectionGroupsError && (
+            <div className="flex flex-col items-center gap-3 text-center">
+              <p className="text-sm text-muted-foreground">
+                {selectionGroupsError}
+              </p>
+              <Button size="sm" onClick={fetchSelectionGroups}>
+                Try again
+              </Button>
+            </div>
+          )}
+          {!selectionGroupsLoading &&
+            !selectionGroupsError &&
+            selectionGroups.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center">
+                No selection groups found.
+              </p>
+            )}
+          {!selectionGroupsLoading &&
+            !selectionGroupsError &&
+            selectionGroups.length > 0 && (
+              <ScrollArea className="max-h-80 pr-4">
+                <div className="space-y-3">
+                  {selectionGroups.map((group) => {
+                    const parsedTimeframes = parseTimeframes(group.timeframes);
+                    return (
+                      <Card key={group.id} className="p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium">
+                              {group.name || "Untitled selection"}
+                            </p>
+                            {group.created_at && (
+                              <p className="text-xs text-muted-foreground">
+                                Created {formatDateTime(group.created_at)}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {parsedTimeframes.length}{" "}
+                            {parsedTimeframes.length === 1
+                              ? "timeframe"
+                              : "timeframes"}
+                          </span>
+                        </div>
+                        {parsedTimeframes.length > 0 && (
+                          <div className="rounded-md bg-muted p-2">
+                            <p className="text-xs font-medium text-muted-foreground uppercase">
+                              Timeframes preview
+                            </p>
+                            <div className="mt-1 space-y-1 text-xs text-foreground">
+                              {parsedTimeframes.slice(0, 3).map((frame, idx) => {
+                                const start =
+                                  frame.start !== undefined ? frame.start : "-";
+                                const end =
+                                  frame.end !== undefined ? frame.end : "-";
+                                return (
+                                  <div
+                                    key={`${group.id}-${idx}`}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <span className="font-medium">
+                                      {frame.label}:
+                                    </span>
+                                    <span>
+                                      {start} → {end}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              {parsedTimeframes.length > 3 && (
+                                <p className="text-xs text-muted-foreground">
+                                  +{parsedTimeframes.length - 3} more
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 
   return (
@@ -106,7 +348,10 @@ export const Uploads = () => {
         Your uploads
       </div>
       <ModalUpload />
-      <UploadPrompt />
+      <UploadPrompt
+        onLoadSelectionGroups={() => setSelectionModalOpen(true)}
+      />
+      <SelectionGroupsDialog />
 
       {/* Uploads in Progress Section */}
       {(pendingUploads.length > 0 || activeUploads.length > 0) && (
