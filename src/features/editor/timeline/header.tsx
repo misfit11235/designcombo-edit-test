@@ -18,7 +18,7 @@ import {
 } from "../utils/timeline";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
 import { Slider } from "@/components/ui/slider";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import useUpdateAnsestors from "../hooks/use-update-ansestors";
 import { ITimelineScaleState } from "@designcombo/types";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
@@ -134,6 +134,15 @@ const Header = () => {
       });
     };
   }, [playerRef]);
+
+  const movePlayheadToTimelineCenter = useCallback(() => {
+    if (!playerRef?.current) return;
+    if (!fps || duration <= 0) return;
+
+    const middleTimeMs = duration / 2;
+    const middleFrame = Math.round((middleTimeMs / 1000) * fps);
+    playerRef.current.seekTo(middleFrame);
+  }, [playerRef, fps, duration]);
 
   return (
     <div
@@ -270,6 +279,7 @@ const Header = () => {
             scale={scale}
             onChangeTimelineScale={changeScale}
             duration={duration}
+            onPlayheadCenter={movePlayheadToTimelineCenter}
           />
         </div>
       </div>
@@ -280,11 +290,13 @@ const Header = () => {
 const ZoomControl = ({
   scale,
   onChangeTimelineScale,
-  duration
+  duration,
+  onPlayheadCenter
 }: {
   scale: ITimelineScaleState;
   onChangeTimelineScale: (scale: ITimelineScaleState) => void;
   duration: number;
+  onPlayheadCenter: () => void;
 }) => {
   const [localValue, setLocalValue] = useState(scale.index);
   const timelineOffsetX = useTimelineOffsetX();
@@ -296,16 +308,19 @@ const ZoomControl = ({
   const onZoomOutClick = () => {
     const previousZoom = getPreviousZoomLevel(scale);
     onChangeTimelineScale(previousZoom);
+    onPlayheadCenter();
   };
 
   const onZoomInClick = () => {
     const nextZoom = getNextZoomLevel(scale);
     onChangeTimelineScale(nextZoom);
+    onPlayheadCenter();
   };
 
   const onZoomFitClick = () => {
     const fitZoom = getFitZoomLevel(duration, scale.zoom, timelineOffsetX);
     onChangeTimelineScale(fitZoom);
+    onPlayheadCenter();
   };
 
   return (
@@ -326,6 +341,7 @@ const ZoomControl = ({
           onValueCommit={() => {
             const zoom = getZoomByIndex(localValue);
             onChangeTimelineScale(zoom); // Propagate value to parent when user commits change
+            onPlayheadCenter();
           }}
         />
         <Button size={"icon"} variant={"ghost"} onClick={onZoomInClick}>

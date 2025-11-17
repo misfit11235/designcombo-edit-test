@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Header from "./header";
 import Ruler from "./ruler";
 import { timeMsToUnits, unitsToTimeMs } from "@designcombo/timeline";
@@ -68,6 +68,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     EMPTY_SIZE
   );
   const timelineOffsetX = useTimelineOffsetX();
+  const prevScaleIndexRef = useRef(scale.index);
 
   const { setTimeline } = useStore();
 
@@ -300,6 +301,48 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       timeline.scrollTo({ scrollLeft: availableScroll - canvasWidth });
     }
   }, [scale]);
+
+  const centerPlayheadOnZoom = useCallback(() => {
+    if (!timeline) return;
+    if (duration <= 0) return;
+    const horizontalViewportEl = horizontalScrollbarVpRef.current;
+    const visibleWidth =
+      horizontalViewportEl?.clientWidth ||
+      canvasSize.width ||
+      timeline.width ||
+      0;
+    if (!visibleWidth) return;
+
+    const middleTimeMs = duration / 2;
+    const playheadPosition = timeMsToUnits(middleTimeMs, scale.zoom);
+
+    const scrollContentWidth =
+      horizontalViewportEl?.scrollWidth ||
+      timeline.width ||
+      (size.width > visibleWidth
+        ? size.width + TIMELINE_OFFSET_CANVAS_RIGHT
+        : size.width);
+
+    const maxScroll = Math.max(0, scrollContentWidth - visibleWidth);
+    const targetScroll = Math.min(
+      Math.max(0, playheadPosition - visibleWidth / 2),
+      maxScroll
+    );
+
+    timeline.scrollTo({ scrollLeft: targetScroll });
+    if (horizontalViewportEl) {
+      horizontalViewportEl.scrollLeft = targetScroll;
+    }
+    setScrollLeft(targetScroll);
+  }, [timeline, canvasSize.width, duration, scale.zoom, size.width, setScrollLeft]);
+
+  useEffect(() => {
+    if (!timeline) return;
+    if (prevScaleIndexRef.current !== scale.index) {
+      prevScaleIndexRef.current = scale.index;
+      centerPlayheadOnZoom();
+    }
+  }, [scale.index, timeline, centerPlayheadOnZoom]);
 
   return (
     <div
