@@ -69,6 +69,14 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
   );
   const timelineOffsetX = useTimelineOffsetX();
   const prevScaleIndexRef = useRef(scale.index);
+  const playheadFrameRef = useRef(currentFrame);
+  const trimPreviewStateRef = useRef<{
+    isActive: boolean;
+    frameBeforeTrim: number | null;
+  }>({
+    isActive: false,
+    frameBeforeTrim: null,
+  });
 
   const { setTimeline } = useStore();
 
@@ -116,6 +124,12 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
             left: totalScrollWidth - scrollDivWidth,
           });
       }
+    }
+  }, [currentFrame]);
+
+  useEffect(() => {
+    if (!trimPreviewStateRef.current.isActive) {
+      playheadFrameRef.current = currentFrame;
     }
   }, [currentFrame]);
 
@@ -343,6 +357,67 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       centerPlayheadOnZoom();
     }
   }, [scale.index, timeline, centerPlayheadOnZoom]);
+
+  useEffect(() => {
+    if (!timeline) return;
+
+    const handleObjectResizing = (event: any) => {
+      const target = event?.target;
+      const transform = event?.transform;
+      if (!target) return;
+      const itemType =
+        typeof target.itemType === "string"
+          ? target.itemType.toLowerCase()
+          : typeof target.type === "string"
+            ? target.type.toLowerCase()
+            : "";
+      if (itemType !== "video") return;
+      if (!transform || transform.action !== "resizing") return;
+      const corner = transform.corner;
+      if (corner !== "ml" && corner !== "mr") return;
+
+      if (!trimPreviewStateRef.current.isActive) {
+        trimPreviewStateRef.current.isActive = true;
+        trimPreviewStateRef.current.frameBeforeTrim = playheadFrameRef.current;
+      }
+
+      const scaledWidth =
+        typeof target.getScaledWidth === "function"
+          ? target.getScaledWidth()
+          : (target.width || 0) * (target.scaleX || 1);
+      const edgeUnits =
+        corner === "ml"
+          ? target.left || 0
+          : (target.left || 0) + scaledWidth;
+      const ms = unitsToTimeMs(
+        edgeUnits,
+        target.tScale ?? scale.zoom,
+        target.playbackRate ?? 1
+      );
+      const targetFrame = Math.max(0, Math.round((ms * fps) / 1000));
+      playerRef?.current?.seekTo(targetFrame);
+    };
+
+    const stopPreview = () => {
+      if (!trimPreviewStateRef.current.isActive) return;
+      trimPreviewStateRef.current.isActive = false;
+      const frameToRestore = trimPreviewStateRef.current.frameBeforeTrim;
+      if (typeof frameToRestore === "number") {
+        playerRef?.current?.seekTo(Math.max(0, Math.round(frameToRestore)));
+      }
+      trimPreviewStateRef.current.frameBeforeTrim = null;
+    };
+
+    timeline.on("object:resizing", handleObjectResizing);
+    timeline.on("object:modified", stopPreview);
+    timeline.on("mouse:up", stopPreview);
+
+    return () => {
+      timeline.off("object:resizing", handleObjectResizing);
+      timeline.off("object:modified", stopPreview);
+      timeline.off("mouse:up", stopPreview);
+    };
+  }, [timeline, fps, playerRef, scale.zoom]);
 
   return (
     <div
