@@ -10,6 +10,8 @@ export const getTargetControls = (targetType: string): string[] => {
       return ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
     case "group":
       return ["nw", "ne", "sw", "se"];
+    case "video":
+      return [];
     default:
       return ["nw", "ne", "sw", "se"];
   }
@@ -33,7 +35,7 @@ export const getTargetAbles = (targetType: string): ITargetAbles => {
         scalable: false,
         keepRatio: false,
         draggable: true,
-        snappable: true
+        snappable: true,
       };
     case "caption":
       return {
@@ -42,7 +44,7 @@ export const getTargetAbles = (targetType: string): ITargetAbles => {
         scalable: false,
         keepRatio: false,
         draggable: true,
-        snappable: true
+        snappable: true,
       };
     case "image":
       return {
@@ -51,7 +53,7 @@ export const getTargetAbles = (targetType: string): ITargetAbles => {
         scalable: true,
         keepRatio: true,
         draggable: true,
-        snappable: true
+        snappable: true,
       };
     case "group":
       return {
@@ -60,7 +62,7 @@ export const getTargetAbles = (targetType: string): ITargetAbles => {
         scalable: true,
         keepRatio: true,
         draggable: true,
-        snappable: true
+        snappable: true,
       };
     case "svg":
       return {
@@ -70,7 +72,7 @@ export const getTargetAbles = (targetType: string): ITargetAbles => {
         keepRatio: true,
 
         draggable: true,
-        snappable: true
+        snappable: true,
       };
     default:
       return {
@@ -79,7 +81,7 @@ export const getTargetAbles = (targetType: string): ITargetAbles => {
         scalable: true,
         keepRatio: true,
         draggable: true,
-        snappable: true
+        snappable: true,
       };
   }
 };
@@ -106,9 +108,9 @@ export const emptySelection: SelectionInfo = {
     scalable: false,
     keepRatio: false,
     draggable: true,
-    snappable: true
+    snappable: true,
   },
-  controls: []
+  controls: [],
 };
 
 export const getSelectionByIds = (ids: string[]): SelectionInfo => {
@@ -140,7 +142,7 @@ export const getSelectionByIds = (ids: string[]): SelectionInfo => {
       targets,
       layerType: "group",
       ables: getTargetAbles("group"),
-      controls: []
+      controls: [],
     };
   }
 };
