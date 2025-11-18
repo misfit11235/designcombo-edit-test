@@ -22,6 +22,8 @@ class Timeline extends TimelineBase {
     window.addEventListener("keyup", this.handleKeyUp);
   }
 
+
+
   private handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Shift") {
       this.isShiftKey = true;

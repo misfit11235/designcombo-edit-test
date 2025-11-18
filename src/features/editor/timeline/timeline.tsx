@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Header from "./header";
 import Ruler from "./ruler";
-import { timeMsToUnits, unitsToTimeMs } from "@designcombo/timeline";
+import { timeMsToUnits, unitsToTimeMs, generateId } from "@designcombo/timeline";
 import CanvasTimeline from "./items/timeline";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { dispatch, filter, subject } from "@designcombo/events";
@@ -26,6 +26,7 @@ import {
   HillAudioBars,
 } from "./items";
 import StateManager, { REPLACE_MEDIA } from "@designcombo/state";
+import SelectionGroupOverlay from "./selection-group-overlay";
 import {
   TIMELINE_OFFSET_CANVAS_LEFT,
   TIMELINE_OFFSET_CANVAS_RIGHT,
@@ -177,6 +178,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         radialAudioBars: 40,
         waveAudioBars: 40,
         hillAudioBars: 40,
+        selectionGroup: 100,
       },
       itemTypes: [
         "text",
@@ -186,6 +188,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         "caption",
         "helper",
         "track",
+        "selectionGroup",
         "composition",
         "template",
         "linealAudioBars",
@@ -358,6 +361,8 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
     }
   }, [scale.index, timeline, centerPlayheadOnZoom]);
 
+
+
   useEffect(() => {
     if (!timeline) return;
 
@@ -446,6 +451,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
             className="absolute top-0 w-full"
           >
             <canvas id="designcombo-timeline-canvas" ref={canvasElRef} />
+            <SelectionGroupOverlay />
           </div>
           <ScrollArea.Root
             type="always"

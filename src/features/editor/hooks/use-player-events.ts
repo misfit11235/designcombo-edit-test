@@ -72,8 +72,12 @@ const usePlayerEvents = () => {
 
     const selectionSubscription = selectionEvents.subscribe((obj) => {
       if (obj.key === LAYER_SELECTION) {
+        // Filter out selection group IDs to prevent player from trying to render them
+        const activeIds = obj.value?.payload.activeIds || [];
+        const filteredIds = activeIds.filter((id: string) => !id.startsWith('selection-group-'));
+        
         setState({
-          activeIds: obj.value?.payload.activeIds
+          activeIds: filteredIds
         });
       }
     });

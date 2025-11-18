@@ -281,7 +281,7 @@ export const Uploads = () => {
                     return (
                       <Card key={group.id} className="p-4 space-y-2">
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="flex-1">
                             <p className="text-sm font-medium">
                               {group.name || "Untitled selection"}
                             </p>
@@ -291,12 +291,25 @@ export const Uploads = () => {
                               </p>
                             )}
                           </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {parsedTimeframes.length}{" "}
-                            {parsedTimeframes.length === 1
-                              ? "timeframe"
-                              : "timeframes"}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {parsedTimeframes.length}{" "}
+                              {parsedTimeframes.length === 1
+                                ? "timeframe"
+                                : "timeframes"}
+                            </span>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                dispatch("LOAD_SELECTION_GROUP", {
+                                  payload: group,
+                                });
+                                setSelectionModalOpen(false);
+                              }}
+                            >
+                              Load
+                            </Button>
+                          </div>
                         </div>
                         {parsedTimeframes.length > 0 && (
                           <div className="rounded-md bg-muted p-2">
