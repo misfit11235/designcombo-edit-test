@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PLAYER_SEEK, PLAYER_PLAY, PLAYER_PAUSE } from "../constants/events";
 import { getCurrentTime } from "../utils/time";
-import { Play, Pause } from "lucide-react";
 
 interface SelectionMarker {
   id: string;

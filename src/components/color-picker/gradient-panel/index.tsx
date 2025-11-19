@@ -6,10 +6,10 @@ import {
   useRef,
   memo,
   MouseEvent,
-  TouchEvent
+  TouchEvent,
 } from "react";
 
-import Markers from "./markers";
+import Markers from "./Markers";
 import { css } from "@emotion/react";
 import { getGradient } from "../utils";
 import { arraysEqual, shallowEqual } from "../helper";
@@ -26,7 +26,7 @@ const GradientPanel: FC<IPropsPanel> = ({
   format = "rgb",
 
   showGradientAngle = true,
-  allowAddGradientStops = true
+  allowAddGradientStops = true,
 }) => {
   const angleNode = useRef<HTMLDivElement>(null);
 
@@ -48,7 +48,7 @@ const GradientPanel: FC<IPropsPanel> = ({
             activePos?.css || modifier,
             format
           )}`,
-          type: "radial"
+          type: "radial",
         });
         break;
       }
@@ -57,7 +57,7 @@ const GradientPanel: FC<IPropsPanel> = ({
         setColor({
           ...color,
           gradient: `${getGradient("linear", stops, 180, format)}`,
-          type: "linear"
+          type: "linear",
         });
         break;
       }
@@ -76,13 +76,13 @@ const GradientPanel: FC<IPropsPanel> = ({
       if (item.pos === pos) {
         return {
           ...item,
-          active: true
+          active: true,
         };
       }
 
       return {
         ...item,
-        active: false
+        active: false,
       };
     });
 
@@ -97,7 +97,7 @@ const GradientPanel: FC<IPropsPanel> = ({
         stops,
         activePos?.css || modifier,
         format
-      )}`
+      )}`,
     });
   };
 
@@ -128,7 +128,7 @@ const GradientPanel: FC<IPropsPanel> = ({
         x,
         y,
         shiftKey,
-        ctrlKey
+        ctrlKey,
       });
 
       window.addEventListener("mousemove", onDrag);
@@ -146,7 +146,7 @@ const GradientPanel: FC<IPropsPanel> = ({
       x,
       y,
       shiftKey,
-      ctrlKey
+      ctrlKey,
     });
   };
 
@@ -160,7 +160,7 @@ const GradientPanel: FC<IPropsPanel> = ({
       x,
       y,
       shiftKey,
-      ctrlKey
+      ctrlKey,
     });
 
     removeListeners();
@@ -204,7 +204,7 @@ const GradientPanel: FC<IPropsPanel> = ({
       x,
       y,
       shiftKey,
-      ctrlKey
+      ctrlKey,
     });
   };
 
@@ -227,7 +227,7 @@ const GradientPanel: FC<IPropsPanel> = ({
     setColor({
       ...color,
       gradient: `${getGradient(type, stops, newAngle, format)}`,
-      modifier: newAngle
+      modifier: newAngle,
     });
   };
 
@@ -250,7 +250,7 @@ const GradientPanel: FC<IPropsPanel> = ({
           stops,
           activePos?.css || modifier,
           format
-        )}`
+        )}`,
       });
 
       setRadialPosition(
@@ -258,13 +258,13 @@ const GradientPanel: FC<IPropsPanel> = ({
           if (item.css === modifier) {
             return {
               ...item,
-              active: true
+              active: true,
             };
           }
 
           return {
             ...item,
-            active: false
+            active: false,
           };
         })
       );
@@ -301,7 +301,7 @@ const GradientPanel: FC<IPropsPanel> = ({
             style={{
               transform: `rotate(${
                 typeof modifier === "number" ? `${modifier - 90}deg` : modifier
-              })`
+              })`,
             }}
           />
         </div>
@@ -309,7 +309,7 @@ const GradientPanel: FC<IPropsPanel> = ({
           className="gradient-pos"
           style={{
             opacity: type === "radial" ? "1" : "0",
-            visibility: type === "radial" ? "visible" : "hidden"
+            visibility: type === "radial" ? "visible" : "hidden",
           }}
         >
           {radialsPosition.map((item) => {
