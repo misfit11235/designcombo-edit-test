@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { dispatch } from "@designcombo/events";
+import { dispatch, subject, filter } from "@designcombo/events";
 import { HISTORY_UNDO, HISTORY_REDO, DESIGN_RESIZE } from "@designcombo/state";
 import { Icons } from "@/components/shared/icons";
 import {
@@ -28,6 +28,7 @@ import {
   useIsMediumScreen,
   useIsSmallScreen,
 } from "@/hooks/use-media-query";
+import { toast } from "sonner";
 
 import { LogoIcons } from "@/components/shared/logos";
 import Link from "next/link";
@@ -167,6 +168,137 @@ const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
     actions.setState({ payload: data });
     actions.startExport();
   };
+
+  // Listen for marker export trigger
+  useEffect(() => {
+    console.log("Navbar: Setting up START_MARKER_EXPORT listener");
+
+    const subscription = subject
+      .pipe(filter(({ key }) => key === "START_MARKER_EXPORT"))
+      .subscribe(async (event: any) => {
+        console.log("Navbar: Received START_MARKER_EXPORT event", event);
+
+        const markers = event.value?.payload?.markers;
+
+        if (!markers) {
+          console.log("Navbar: No markers in payload", event);
+          return;
+        }
+
+        console.log("Navbar: Processing markers", markers);
+
+        for (const marker of markers) {
+          try {
+            // Get the current editor state
+            const editorState = stateManager.toJSON();
+
+            console.log("Original editor state:", editorState);
+            console.log("Marker:", marker);
+
+            // Calculate marker duration
+            const markerDurationMs = marker.endMs - marker.startMs;
+
+            // Adjust track items' times relative to marker start and filter items within range
+            const adjustedTrackItemsMap: Record<string, any> = {};
+            const filteredTrackItemIds: string[] = [];
+
+            Object.entries(editorState.trackItemsMap).forEach(
+              ([key, item]: [string, any]) => {
+                const itemStart = item.display?.from || 0;
+                const itemEnd = item.display?.to || 0;
+
+                // Check if item overlaps with marker range
+                if (itemEnd > marker.startMs && itemStart < marker.endMs) {
+                  // Calculate new times relative to marker start
+                  const newFrom = Math.max(0, itemStart - marker.startMs);
+                  const newTo = Math.min(
+                    markerDurationMs,
+                    itemEnd - marker.startMs
+                  );
+
+                  adjustedTrackItemsMap[key] = {
+                    ...item,
+                    display: {
+                      ...item.display,
+                      from: newFrom,
+                      to: newTo,
+                    },
+                  };
+
+                  filteredTrackItemIds.push(key);
+                }
+              }
+            );
+
+            // Update tracks to only include items within the marker range
+            const adjustedTracks = editorState.tracks.map((track: any) => ({
+              ...track,
+              items: track.items.filter((itemId: string) =>
+                filteredTrackItemIds.includes(itemId)
+              ),
+            }));
+
+            // Create a modified state for this marker
+            const markerState = {
+              ...editorState,
+              trackItemsMap: adjustedTrackItemsMap,
+              trackItemIds: filteredTrackItemIds,
+              tracks: adjustedTracks,
+            };
+
+            console.log("Adjusted marker state:", markerState);
+
+            // Get FPS from editor state
+            const fps = editorState.fps || 30;
+
+            // Wrap the marker state in a design object with proper structure
+            const designData = {
+              id: generateId(),
+              ...markerState,
+            };
+
+            const requestBody = {
+              design: designData,
+              options: {
+                fps: fps,
+                size: markerState.size,
+                format: "mp4",
+              },
+            };
+
+            console.log("Sending render request:", requestBody);
+
+            // Call the render API
+            const response = await fetch("/api/render", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestBody),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              console.error("Render API error response:", errorData);
+              toast.error(
+                errorData.message || `Failed to export marker ${marker.label}`
+              );
+              continue;
+            }
+
+            const data = await response.json();
+            console.log(`Marker ${marker.label} export started:`, data);
+
+            // TODO: Poll for completion and download
+            // For now, show in download modal
+            toast.success(`Export started for ${marker.label}`);
+          } catch (error) {
+            console.error(`Export error for marker ${marker.label}:`, error);
+            toast.error(`Failed to export ${marker.label}`);
+          }
+        }
+      });
+
+    return () => subscription.unsubscribe();
+  }, [stateManager]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

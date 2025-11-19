@@ -209,14 +209,48 @@ const SelectionGroupOverlay = () => {
       .pipe(filter(({ key }) => key === "DELETE_SELECTED_MARKERS"))
       .subscribe(() => {
         // Remove selected markers
-        const newMarkers = markers.filter(m => !selectedMarkerIds.includes(m.id));
+        const newMarkers = markers.filter(
+          (m) => !selectedMarkerIds.includes(m.id)
+        );
         setMarkers(newMarkers);
         setSelectedMarkerIds([]);
-        toast.success(`Deleted ${selectedMarkerIds.length} marker${selectedMarkerIds.length > 1 ? 's' : ''}`);
+        toast.success(
+          `Deleted ${selectedMarkerIds.length} marker${
+            selectedMarkerIds.length > 1 ? "s" : ""
+          }`
+        );
       });
 
     return () => subscription.unsubscribe();
   }, [selectedMarkerIds, markers]);
+
+  // Listen for export selected markers
+  useEffect(() => {
+    console.log("Overlay: Setting up EXPORT_SELECTED_MARKERS listener");
+
+    const subscription = subject
+      .pipe(filter(({ key }) => key === "EXPORT_SELECTED_MARKERS"))
+      .subscribe(() => {
+        console.log("Overlay: Received EXPORT_SELECTED_MARKERS event");
+        handleExportMarkers(false);
+      });
+
+    return () => subscription.unsubscribe();
+  }, [markers, selectedMarkerIds, fps]);
+
+  // Listen for export all markers
+  useEffect(() => {
+    console.log("Overlay: Setting up EXPORT_ALL_MARKERS listener");
+
+    const subscription = subject
+      .pipe(filter(({ key }) => key === "EXPORT_ALL_MARKERS"))
+      .subscribe(() => {
+        console.log("Overlay: Received EXPORT_ALL_MARKERS event");
+        handleExportMarkers(true);
+      });
+
+    return () => subscription.unsubscribe();
+  }, [markers, fps]);
 
   // Sync with canvas vertical scroll
   useEffect(() => {
@@ -404,15 +438,17 @@ const SelectionGroupOverlay = () => {
 
     // Check if markers have been added or deleted
     const countChanged = markers.length !== originalMarkers.length;
-    
+
     // Check if any marker positions have changed
-    const modified = countChanged || markers.some((marker) => {
-      const original = originalMarkers.find((m) => m.id === marker.id);
-      if (!original) return true;
-      return (
-        original.startMs !== marker.startMs || original.endMs !== marker.endMs
-      );
-    });
+    const modified =
+      countChanged ||
+      markers.some((marker) => {
+        const original = originalMarkers.find((m) => m.id === marker.id);
+        if (!original) return true;
+        return (
+          original.startMs !== marker.startMs || original.endMs !== marker.endMs
+        );
+      });
 
     setHasModifications(modified);
     // Dispatch state update
@@ -521,6 +557,51 @@ const SelectionGroupOverlay = () => {
     dispatch(PLAYER_SEEK, { payload: { time: marker.startMs } });
     dispatch(PLAYER_PLAY, { payload: {} });
     dispatch("SEQUENTIAL_PLAY_STATE_CHANGED", { payload: { isPlaying: true } });
+  };
+
+  // Handle exporting markers to MP4
+  const handleExportMarkers = async (exportAll: boolean) => {
+    console.log("handleExportMarkers called", {
+      exportAll,
+      markers,
+      selectedMarkerIds,
+    });
+
+    const markersToExport = exportAll
+      ? markers
+      : markers.filter((m) => selectedMarkerIds.includes(m.id));
+
+    console.log("markersToExport:", markersToExport);
+
+    if (markersToExport.length === 0) {
+      toast.error(
+        exportAll
+          ? "No markers available to export."
+          : "No markers selected. Please select at least one marker."
+      );
+      return;
+    }
+
+    toast.info(
+      `Preparing to export ${markersToExport.length} marker${
+        markersToExport.length > 1 ? "s" : ""
+      }...`
+    );
+
+    const exportPayload = {
+      markers: markersToExport.map((m) => ({
+        label: m.label,
+        startMs: m.startMs,
+        endMs: m.endMs,
+      })),
+    };
+
+    console.log("Dispatching START_MARKER_EXPORT with payload:", exportPayload);
+
+    // Dispatch event to trigger export with marker information
+    dispatch("START_MARKER_EXPORT", {
+      payload: exportPayload,
+    });
   };
 
   // Monitor playback to handle sequential play

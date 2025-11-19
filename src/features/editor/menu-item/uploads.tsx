@@ -264,6 +264,30 @@ export const Uploads = () => {
       >
         <span className="ml-2">Save selection group</span>
       </Button>
+      <Button
+        className="w-full cursor-pointer"
+        variant="outline"
+        onClick={() => {
+          console.log("Button clicked: EXPORT_SELECTED_MARKERS");
+          dispatch("EXPORT_SELECTED_MARKERS", { payload: {} });
+          console.log("Dispatched: EXPORT_SELECTED_MARKERS");
+        }}
+      >
+        <VideoIcon size={16} />
+        <span className="ml-2">Export selected markers</span>
+      </Button>
+      <Button
+        className="w-full cursor-pointer"
+        variant="outline"
+        onClick={() => {
+          console.log("Button clicked: EXPORT_ALL_MARKERS");
+          dispatch("EXPORT_ALL_MARKERS", { payload: {} });
+          console.log("Dispatched: EXPORT_ALL_MARKERS");
+        }}
+      >
+        <VideoIcon size={16} />
+        <span className="ml-2">Export all markers</span>
+      </Button>
     </div>
   );
 

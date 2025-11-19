@@ -4,6 +4,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json(); // Parse the request body
 
+    console.log("Received request body:", JSON.stringify(body, null, 2));
+
     // Step 1: Create project using the new API
     const projectResponse = await fetch(
       "https://api.designcombo.dev/v1/projects",
@@ -11,14 +13,36 @@ export async function POST(request: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.COMBO_SK}`
+          Authorization: `Bearer ${process.env.COMBO_SK}`,
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       }
     );
 
+    console.log("Project response status:", projectResponse.status);
+
     if (!projectResponse.ok) {
-      const projectError = await projectResponse.json();
+      const responseText = await projectResponse.text();
+      console.error("Project API error response:", responseText);
+
+      let projectError;
+      try {
+        projectError = JSON.parse(responseText);
+      } catch {
+        // If it's HTML (503 error), extract a user-friendly message
+        if (
+          responseText.includes("503") ||
+          responseText.includes("Server Error")
+        ) {
+          projectError = {
+            message:
+              "Service currently not available from provider. Render service is warming up. Please try again in 30 seconds.",
+          };
+        } else {
+          projectError = { message: responseText };
+        }
+      }
+
       return NextResponse.json(
         { message: projectError?.message || "Failed to create project" },
         { status: projectResponse.status }
@@ -36,8 +60,8 @@ export async function POST(request: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.COMBO_SK}`
-        }
+          Authorization: `Bearer ${process.env.COMBO_SK}`,
+        },
       }
     );
 
@@ -55,9 +79,16 @@ export async function POST(request: Request) {
     // Return the export data with the render ID for status checking
     return NextResponse.json(exportData, { status: 200 });
   } catch (error) {
-    console.error(error);
+    console.error("Render API Error:", error);
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
     return NextResponse.json(
-      { message: "Internal server error" },
+      {
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
@@ -83,8 +114,8 @@ export async function GET(request: Request) {
 
     const response = await fetch(`https://api.combo.sh/v1/render/${id}`, {
       headers: {
-        Authorization: `Bearer ${process.env.COMBO_SH_JWT}` // JWT Token from environment
-      }
+        Authorization: `Bearer ${process.env.COMBO_SH_JWT}`, // JWT Token from environment
+      },
     });
 
     if (!response.ok) {
