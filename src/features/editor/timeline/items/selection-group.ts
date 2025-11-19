@@ -40,20 +40,20 @@ class SelectionGroup extends Resizable {
     this.lockMovementY = true; // Only lock vertical movement
     this.lockScalingY = true; // Only lock vertical resizing
     this.lockRotation = true; // Lock rotation
-    
+
     // Allow horizontal movement and resizing
     this.lockMovementX = false;
     this.lockScalingX = false;
-    
+
     // Set rounded corners
     this.rx = 4;
     this.ry = 4;
-    
+
     // Mark this as an overlay to identify it
     (this as any).isOverlay = true;
     (this as any).isSelectionGroup = true;
     (this as any).excludeFromExport = true; // Critical: Tells state manager to ignore this
-    
+
     // Critical: Set a flag that prevents state manager from processing this
     // The id format prevents state manager from finding this in trackItemsMap
     this.id = `selection-group-${props.groupId}-${Date.now()}`;
@@ -68,17 +68,17 @@ class SelectionGroup extends Resizable {
   public drawLabel(ctx: CanvasRenderingContext2D) {
     ctx.save();
     ctx.translate(-this.width / 2, -this.height / 2);
-    
+
     // Draw label text
     ctx.font = `600 14px ${SECONDARY_FONT}`;
     ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    
+
     // Add padding from left edge
     const padding = 8;
     ctx.fillText(this.label, padding, padding);
-    
+
     ctx.restore();
   }
 

@@ -9,6 +9,7 @@ interface SelectionMarker {
   startMs: number;
   endMs: number;
   groupId: string;
+  videoItemId?: string; // Track which video item this marker belongs to
 }
 
 interface DragState {
@@ -22,32 +23,60 @@ interface DragState {
 const SelectionGroupOverlay = () => {
   const { timeline, scale, scroll } = useStore();
   const [markers, setMarkers] = useState<SelectionMarker[]>([]);
-  const [videoTrackInfo, setVideoTrackInfo] = useState<{ top: number; height: number } | null>(null);
+  const [videoTrackInfo, setVideoTrackInfo] = useState<{
+    top: number;
+    height: number;
+    videoItemId: string;
+  } | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
+  const [verticalScroll, setVerticalScroll] = useState(0);
 
-  // Get video track position
+  // Get video track position and clear markers if video is deleted
   useEffect(() => {
     if (!timeline) return;
 
     const updateVideoTrack = () => {
       const allObjects = timeline.getObjects();
-      const videoItems = allObjects.filter((obj: any) => 
-        obj.type === "Video" || obj.itemType === "video"
+      const videoItems = allObjects.filter(
+        (obj: any) => obj.type === "Video" || obj.itemType === "video"
       );
-      
-      if (videoItems.length === 0) return false;
+
+      if (videoItems.length === 0) {
+        // No video items found - clear markers and video track info
+        setMarkers([]);
+        setVideoTrackInfo(null);
+        return false;
+      }
 
       const topVideoItem = videoItems.reduce((topmost: any, current: any) => {
-        return (current.top < topmost.top) ? current : topmost;
+        return current.top < topmost.top ? current : topmost;
       }, videoItems[0]);
 
       setVideoTrackInfo({
         top: topVideoItem.top,
         height: topVideoItem.height || 100,
+        videoItemId: topVideoItem.id,
       });
-      
+
       return true;
     };
+
+    // Listen for object removal events
+    const handleObjectRemoved = (e: any) => {
+      const removedObject = e.target;
+
+      // Check if the removed object is the video that markers are attached to
+      if (videoTrackInfo && removedObject.id === videoTrackInfo.videoItemId) {
+        // The video track we're attached to was deleted - clear everything
+        setMarkers([]);
+        setVideoTrackInfo(null);
+      } else {
+        // Some other object was removed, update track info
+        updateVideoTrack();
+      }
+    };
+
+    timeline.on("object:removed", handleObjectRemoved);
 
     // Try immediately
     if (!updateVideoTrack()) {
@@ -58,9 +87,16 @@ const SelectionGroupOverlay = () => {
           clearInterval(interval);
         }
       }, 100);
-      
-      return () => clearInterval(interval);
+
+      return () => {
+        timeline.off("object:removed", handleObjectRemoved);
+        clearInterval(interval);
+      };
     }
+
+    return () => {
+      timeline.off("object:removed", handleObjectRemoved);
+    };
   }, [timeline, markers.length]);
 
   // Listen for load selection group events
@@ -84,18 +120,19 @@ const SelectionGroupOverlay = () => {
 
         // Convert to markers
         const newMarkers: SelectionMarker[] = [];
-        
+
         if (typeof timeframes === "object" && !Array.isArray(timeframes)) {
           Object.entries(timeframes).forEach(([label, tf]: [string, any]) => {
-            const start = Array.isArray(tf) ? tf[0] : (tf.start || tf.from || 0);
-            const end = Array.isArray(tf) ? tf[1] : (tf.end || tf.to || 0);
-            
+            const start = Array.isArray(tf) ? tf[0] : tf.start || tf.from || 0;
+            const end = Array.isArray(tf) ? tf[1] : tf.end || tf.to || 0;
+
             newMarkers.push({
               id: `${groupData.id}-${label}`,
               label,
               startMs: start * 1000,
               endMs: end * 1000,
               groupId: groupData.id,
+              videoItemId: videoTrackInfo?.videoItemId, // Store which video they belong to
             });
           });
         }
@@ -104,14 +141,40 @@ const SelectionGroupOverlay = () => {
       });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [videoTrackInfo]);
+
+  // Sync with canvas vertical scroll
+  useEffect(() => {
+    if (!timeline) return;
+
+    // The timeline canvas has viewportTransform that includes scroll
+    const updateScroll = () => {
+      const viewportTransform = timeline.viewportTransform;
+      if (viewportTransform) {
+        // viewportTransform[5] is the vertical translation (negative of scroll position)
+        setVerticalScroll(-viewportTransform[5]);
+      }
+    };
+
+    // Update on timeline events
+    timeline.on("after:render", updateScroll);
+    updateScroll(); // Initial sync
+
+    return () => {
+      timeline.off("after:render", updateScroll);
+    };
+  }, [timeline]);
 
   // Handle dragging and resizing
-  const handleMouseDown = (e: React.MouseEvent, markerId: string, type: "move" | "resize-left" | "resize-right") => {
+  const handleMouseDown = (
+    e: React.MouseEvent,
+    markerId: string,
+    type: "move" | "resize-left" | "resize-right"
+  ) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    const marker = markers.find(m => m.id === markerId);
+
+    const marker = markers.find((m) => m.id === markerId);
     if (!marker) return;
 
     const left = timeMsToUnits(marker.startMs, scale.zoom);
@@ -132,39 +195,84 @@ const SelectionGroupOverlay = () => {
   const handleMouseMove = (e: MouseEvent) => {
     if (!dragStateRef.current) return;
 
-    const { markerId, type, startX, startLeft, startWidth } = dragStateRef.current;
+    const { markerId, type, startX, startLeft, startWidth } =
+      dragStateRef.current;
     const deltaX = e.clientX - startX;
 
-    setMarkers(prev => prev.map(marker => {
-      if (marker.id !== markerId) return marker;
+    setMarkers((prev) => {
+      // Sort markers by startMs to find adjacent markers
+      const sortedMarkers = [...prev].sort((a, b) => a.startMs - b.startMs);
+      const currentIndex = sortedMarkers.findIndex((m) => m.id === markerId);
+      const currentMarker = sortedMarkers[currentIndex];
 
-      if (type === "move") {
-        const newLeft = startLeft + deltaX;
-        const newStartMs = unitsToTimeMs(newLeft, scale.zoom);
-        const duration = marker.endMs - marker.startMs;
-        return {
-          ...marker,
-          startMs: Math.max(0, newStartMs),
-          endMs: Math.max(0, newStartMs) + duration,
-        };
-      } else if (type === "resize-left") {
-        const newLeft = startLeft + deltaX;
-        const newStartMs = unitsToTimeMs(newLeft, scale.zoom);
-        return {
-          ...marker,
-          startMs: Math.max(0, Math.min(newStartMs, marker.endMs - 100)),
-        };
-      } else if (type === "resize-right") {
-        const newWidth = startWidth + deltaX;
-        const newEndMs = unitsToTimeMs(startLeft + newWidth, scale.zoom);
-        return {
-          ...marker,
-          endMs: Math.max(marker.startMs + 100, newEndMs),
-        };
-      }
+      // Find previous and next markers
+      const prevMarker =
+        currentIndex > 0 ? sortedMarkers[currentIndex - 1] : null;
+      const nextMarker =
+        currentIndex < sortedMarkers.length - 1
+          ? sortedMarkers[currentIndex + 1]
+          : null;
 
-      return marker;
-    }));
+      return prev.map((marker) => {
+        if (marker.id !== markerId) return marker;
+
+        if (type === "move") {
+          const newLeft = startLeft + deltaX;
+          const newStartMs = unitsToTimeMs(newLeft, scale.zoom);
+          const duration = marker.endMs - marker.startMs;
+
+          // Constrain to not pass previous or next marker
+          let constrainedStartMs = Math.max(0, newStartMs);
+
+          // Can't start before previous marker ends
+          if (prevMarker) {
+            constrainedStartMs = Math.max(constrainedStartMs, prevMarker.endMs);
+          }
+
+          // Can't end after next marker starts
+          if (nextMarker) {
+            const maxStartMs = nextMarker.startMs - duration;
+            constrainedStartMs = Math.min(constrainedStartMs, maxStartMs);
+          }
+
+          return {
+            ...marker,
+            startMs: constrainedStartMs,
+            endMs: constrainedStartMs + duration,
+          };
+        } else if (type === "resize-left") {
+          const newLeft = startLeft + deltaX;
+          const newStartMs = unitsToTimeMs(newLeft, scale.zoom);
+
+          // Constrain to not pass previous marker's end
+          let constrainedStartMs = Math.max(0, newStartMs);
+          if (prevMarker) {
+            constrainedStartMs = Math.max(constrainedStartMs, prevMarker.endMs);
+          }
+
+          return {
+            ...marker,
+            startMs: Math.min(constrainedStartMs, marker.endMs - 100),
+          };
+        } else if (type === "resize-right") {
+          const newWidth = startWidth + deltaX;
+          const newEndMs = unitsToTimeMs(startLeft + newWidth, scale.zoom);
+
+          // Constrain to not pass next marker's start
+          let constrainedEndMs = Math.max(marker.startMs + 100, newEndMs);
+          if (nextMarker) {
+            constrainedEndMs = Math.min(constrainedEndMs, nextMarker.startMs);
+          }
+
+          return {
+            ...marker,
+            endMs: constrainedEndMs,
+          };
+        }
+
+        return marker;
+      });
+    });
   };
 
   const handleMouseUp = () => {
@@ -179,6 +287,41 @@ const SelectionGroupOverlay = () => {
     return null;
   }
 
+  // Sort markers by startMs to calculate gaps
+  const sortedMarkers = [...markers].sort((a, b) => a.startMs - b.startMs);
+
+  // Create grayscale overlays for areas outside markers
+  const grayscaleOverlays: Array<{ left: number; width: number }> = [];
+
+  // Before first marker
+  if (sortedMarkers.length > 0) {
+    const firstMarkerLeft =
+      timeMsToUnits(sortedMarkers[0].startMs, scale.zoom) - scroll.left;
+    if (firstMarkerLeft > 0) {
+      grayscaleOverlays.push({ left: 0, width: firstMarkerLeft });
+    }
+  }
+
+  // Between markers
+  for (let i = 0; i < sortedMarkers.length - 1; i++) {
+    const currentEnd =
+      timeMsToUnits(sortedMarkers[i].endMs, scale.zoom) - scroll.left;
+    const nextStart =
+      timeMsToUnits(sortedMarkers[i + 1].startMs, scale.zoom) - scroll.left;
+    const gapWidth = nextStart - currentEnd;
+    if (gapWidth > 0) {
+      grayscaleOverlays.push({ left: currentEnd, width: gapWidth });
+    }
+  }
+
+  // After last marker - extend to a large width to cover the rest
+  if (sortedMarkers.length > 0) {
+    const lastMarkerEnd =
+      timeMsToUnits(sortedMarkers[sortedMarkers.length - 1].endMs, scale.zoom) -
+      scroll.left;
+    grayscaleOverlays.push({ left: lastMarkerEnd, width: 100000 }); // Very large width
+  }
+
   return (
     <div
       style={{
@@ -188,10 +331,28 @@ const SelectionGroupOverlay = () => {
         width: "100%",
         height: "100%",
         pointerEvents: "none",
-        zIndex: 10,
-        overflow: "visible",
+        zIndex: 1,
+        overflow: "hidden",
       }}
     >
+      {/* Grayscale overlays for areas outside markers */}
+      {grayscaleOverlays.map((overlay, index) => (
+        <div
+          key={`grayscale-${index}`}
+          style={{
+            position: "absolute",
+            left: `${overlay.left}px`,
+            top: `${videoTrackInfo.top - verticalScroll}px`,
+            width: `${overlay.width}px`,
+            height: `${videoTrackInfo.height}px`,
+            backdropFilter: "grayscale(100%)",
+            WebkitBackdropFilter: "grayscale(100%)",
+            pointerEvents: "none",
+          }}
+        />
+      ))}
+
+      {/* Selection markers */}
       {markers.map((marker) => {
         const left = timeMsToUnits(marker.startMs, scale.zoom) - scroll.left;
         const width = timeMsToUnits(marker.endMs - marker.startMs, scale.zoom);
@@ -202,10 +363,9 @@ const SelectionGroupOverlay = () => {
             style={{
               position: "absolute",
               left: `${left}px`,
-              top: `${videoTrackInfo.top}px`,
+              top: `${videoTrackInfo.top - verticalScroll}px`,
               width: `${width}px`,
               height: `${videoTrackInfo.height}px`,
-              backgroundColor: "rgba(255, 255, 255, 0.2)",
               border: "2px solid rgba(255, 255, 255, 0.9)",
               borderRadius: "4px",
               pointerEvents: "auto",
@@ -215,6 +375,7 @@ const SelectionGroupOverlay = () => {
               boxSizing: "border-box",
               cursor: "move",
               userSelect: "none",
+              overflow: "hidden",
             }}
             onMouseDown={(e) => handleMouseDown(e, marker.id, "move")}
           >
@@ -234,7 +395,7 @@ const SelectionGroupOverlay = () => {
                 handleMouseDown(e, marker.id, "resize-left");
               }}
             />
-            
+
             {/* Right resize handle */}
             <div
               style={{

@@ -36,7 +36,9 @@ type NormalizedTimeframe = {
   end?: number | string;
 };
 
-const extractRange = (entry: unknown): { start?: number | string; end?: number | string } => {
+const extractRange = (
+  entry: unknown
+): { start?: number | string; end?: number | string } => {
   if (entry === null || entry === undefined) return {};
   if (Array.isArray(entry)) {
     return {
@@ -317,25 +319,29 @@ export const Uploads = () => {
                               Timeframes preview
                             </p>
                             <div className="mt-1 space-y-1 text-xs text-foreground">
-                              {parsedTimeframes.slice(0, 3).map((frame, idx) => {
-                                const start =
-                                  frame.start !== undefined ? frame.start : "-";
-                                const end =
-                                  frame.end !== undefined ? frame.end : "-";
-                                return (
-                                  <div
-                                    key={`${group.id}-${idx}`}
-                                    className="flex items-center gap-2"
-                                  >
-                                    <span className="font-medium">
-                                      {frame.label}:
-                                    </span>
-                                    <span>
-                                      {start} → {end}
-                                    </span>
-                                  </div>
-                                );
-                              })}
+                              {parsedTimeframes
+                                .slice(0, 3)
+                                .map((frame, idx) => {
+                                  const start =
+                                    frame.start !== undefined
+                                      ? frame.start
+                                      : "-";
+                                  const end =
+                                    frame.end !== undefined ? frame.end : "-";
+                                  return (
+                                    <div
+                                      key={`${group.id}-${idx}`}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <span className="font-medium">
+                                        {frame.label}:
+                                      </span>
+                                      <span>
+                                        {start} → {end}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                               {parsedTimeframes.length > 3 && (
                                 <p className="text-xs text-muted-foreground">
                                   +{parsedTimeframes.length - 3} more
@@ -361,9 +367,7 @@ export const Uploads = () => {
         Your uploads
       </div>
       <ModalUpload />
-      <UploadPrompt
-        onLoadSelectionGroups={() => setSelectionModalOpen(true)}
-      />
+      <UploadPrompt onLoadSelectionGroups={() => setSelectionModalOpen(true)} />
       <SelectionGroupsDialog />
 
       {/* Uploads in Progress Section */}

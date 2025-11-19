@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Header from "./header";
 import Ruler from "./ruler";
-import { timeMsToUnits, unitsToTimeMs, generateId } from "@designcombo/timeline";
+import {
+  timeMsToUnits,
+  unitsToTimeMs,
+  generateId,
+} from "@designcombo/timeline";
 import CanvasTimeline from "./items/timeline";
 import * as ScrollArea from "@radix-ui/react-scroll-area";
 import { dispatch, filter, subject } from "@designcombo/events";
@@ -351,7 +355,14 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       horizontalViewportEl.scrollLeft = targetScroll;
     }
     setScrollLeft(targetScroll);
-  }, [timeline, canvasSize.width, duration, scale.zoom, size.width, setScrollLeft]);
+  }, [
+    timeline,
+    canvasSize.width,
+    duration,
+    scale.zoom,
+    size.width,
+    setScrollLeft,
+  ]);
 
   useEffect(() => {
     if (!timeline) return;
@@ -360,8 +371,6 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
       centerPlayheadOnZoom();
     }
   }, [scale.index, timeline, centerPlayheadOnZoom]);
-
-
 
   useEffect(() => {
     if (!timeline) return;
@@ -374,8 +383,8 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
         typeof target.itemType === "string"
           ? target.itemType.toLowerCase()
           : typeof target.type === "string"
-            ? target.type.toLowerCase()
-            : "";
+          ? target.type.toLowerCase()
+          : "";
       if (itemType !== "video") return;
       if (!transform || transform.action !== "resizing") return;
       const corner = transform.corner;
@@ -391,9 +400,7 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
           ? target.getScaledWidth()
           : (target.width || 0) * (target.scaleX || 1);
       const edgeUnits =
-        corner === "ml"
-          ? target.left || 0
-          : (target.left || 0) + scaledWidth;
+        corner === "ml" ? target.left || 0 : (target.left || 0) + scaledWidth;
       const ms = unitsToTimeMs(
         edgeUnits,
         target.tScale ?? scale.zoom,

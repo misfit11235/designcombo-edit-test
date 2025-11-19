@@ -22,8 +22,6 @@ class Timeline extends TimelineBase {
     window.addEventListener("keyup", this.handleKeyUp);
   }
 
-
-
   private handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Shift") {
       this.isShiftKey = true;
@@ -55,7 +53,7 @@ class Timeline extends TimelineBase {
 
     this.onScroll?.({
       scrollTop: limitedPos.y,
-      scrollLeft: limitedPos.x - this.spacing.left
+      scrollLeft: limitedPos.x - this.spacing.left,
     });
   }
 
@@ -72,7 +70,7 @@ class Timeline extends TimelineBase {
 
   public scrollTo({
     scrollLeft,
-    scrollTop
+    scrollTop,
   }: {
     scrollLeft?: number;
     scrollTop?: number;

@@ -4,14 +4,14 @@ import {
   Trimmable,
   TrimmableProps,
   timeMsToUnits,
-  unitsToTimeMs
+  unitsToTimeMs,
 } from "@designcombo/timeline";
 import { Filmstrip, FilmstripBacklogOptions } from "../types";
 import ThumbnailCache from "../../utils/thumbnail-cache";
 import { IDisplay, IMetadata, ITrim } from "@designcombo/types";
 import {
   calculateOffscreenSegments,
-  calculateThumbnailSegmentLayout
+  calculateThumbnailSegmentLayout,
 } from "../../utils/filmstrip";
 import { getFileFromUrl } from "../../utils/file";
 import { createMediaControls } from "../controls";
@@ -24,7 +24,7 @@ const EMPTY_FILMSTRIP: Filmstrip = {
   offset: 0,
   startTime: 0,
   thumbnailsCount: 0,
-  widthOnScreen: 0
+  widthOnScreen: 0,
 };
 const MIN_THUMBNAIL_HEIGHT = 40;
 const THUMBNAIL_PADDING = 8;
@@ -86,7 +86,10 @@ class Video extends Trimmable {
       typeof this.height === "number" && this.height > 0
         ? this.height
         : MIN_THUMBNAIL_HEIGHT;
-    return Math.max(MIN_THUMBNAIL_HEIGHT, Math.round(trackHeight - THUMBNAIL_PADDING));
+    return Math.max(
+      MIN_THUMBNAIL_HEIGHT,
+      Math.round(trackHeight - THUMBNAIL_PADDING)
+    );
   }
 
   static createControls(): { controls: Record<string, Control> } {
@@ -182,7 +185,7 @@ class Video extends Trimmable {
 
   private calculateFilmstripDimensions({
     segmentIndex,
-    widthOnScreen
+    widthOnScreen,
   }: {
     segmentIndex: number;
     widthOnScreen: number;
@@ -214,7 +217,7 @@ class Video extends Trimmable {
       leftBacklogSize,
       rightBacklogSize,
       filmstripStartTime,
-      filmstrimpThumbnailsCount
+      filmstrimpThumbnailsCount,
     };
   }
 
@@ -308,7 +311,7 @@ class Video extends Trimmable {
     const fillPattern = new Pattern({
       source: offCanvas,
       repeat: "no-repeat",
-      offsetX: 0
+      offsetX: 0,
     });
 
     this.set("fill", fillPattern);
@@ -328,14 +331,14 @@ class Video extends Trimmable {
 
     // Match and prepare thumbnails
     const thumbnailsArr = await this.clip.thumbnailsList(this.thumbnailWidth, {
-      timestamps: timestamps.map((timestamp) => timestamp * 1e6)
+      timestamps: timestamps.map((timestamp) => timestamp * 1e6),
     });
 
     const updatedThumbnails = thumbnailsArr.map(
       (thumbnail: { ts: number; img: Blob }) => {
         return {
           ts: Math.round(thumbnail.ts / 1e6),
-          img: thumbnail.img
+          img: thumbnail.img,
         };
       }
     );
@@ -545,7 +548,7 @@ class Video extends Trimmable {
 
   public onScrollChange({
     scrollLeft,
-    force
+    force,
   }: {
     scrollLeft: number;
     force?: boolean;
@@ -589,7 +592,7 @@ class Video extends Trimmable {
       const { filmstripOffset, filmstripStartTime, filmstrimpThumbnailsCount } =
         this.calculateFilmstripDimensions({
           widthOnScreen: this.calulateWidthOnScreen(),
-          segmentIndex: segmentToDraw
+          segmentIndex: segmentToDraw,
         });
 
       this.nextFilmstrip = {
@@ -597,7 +600,7 @@ class Video extends Trimmable {
         offset: filmstripOffset,
         startTime: filmstripStartTime,
         thumbnailsCount: filmstrimpThumbnailsCount,
-        widthOnScreen
+        widthOnScreen,
       };
 
       this.loadAndRenderThumbnails();

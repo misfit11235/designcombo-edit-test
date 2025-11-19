@@ -7,7 +7,7 @@ import {
   PLAYER_PREFIX,
   PLAYER_SEEK,
   PLAYER_SEEK_BY,
-  PLAYER_TOGGLE_PLAY
+  PLAYER_TOGGLE_PLAY,
 } from "../constants/events";
 import { LAYER_PREFIX, LAYER_SELECTION } from "@designcombo/state";
 import { TIMELINE_SEEK, TIMELINE_PREFIX } from "@designcombo/timeline";
@@ -74,10 +74,12 @@ const usePlayerEvents = () => {
       if (obj.key === LAYER_SELECTION) {
         // Filter out selection group IDs to prevent player from trying to render them
         const activeIds = obj.value?.payload.activeIds || [];
-        const filteredIds = activeIds.filter((id: string) => !id.startsWith('selection-group-'));
-        
+        const filteredIds = activeIds.filter(
+          (id: string) => !id.startsWith("selection-group-")
+        );
+
         setState({
-          activeIds: filteredIds
+          activeIds: filteredIds,
         });
       }
     });
