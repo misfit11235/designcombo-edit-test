@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PLAYER_SEEK } from "../constants/events";
+import { PLAYER_SEEK, PLAYER_PLAY, PLAYER_PAUSE } from "../constants/events";
 import { getCurrentTime } from "../utils/time";
+import { Play, Pause } from "lucide-react";
 
 interface SelectionMarker {
   id: string;
@@ -48,6 +49,13 @@ const SelectionGroupOverlay = () => {
   const [hasModifications, setHasModifications] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveDialogName, setSaveDialogName] = useState("");
+  const [selectedMarkerIds, setSelectedMarkerIds] = useState<string[]>([]);
+  const [isSequentialPlaying, setIsSequentialPlaying] = useState(false);
+  const sequentialPlayStateRef = useRef<{
+    currentIndex: number;
+    sortedMarkers: SelectionMarker[];
+    isPausing: boolean;
+  } | null>(null);
 
   // Get video track position and clear markers if video is deleted
   useEffect(() => {
@@ -183,6 +191,17 @@ const SelectionGroupOverlay = () => {
 
     return () => subscription.unsubscribe();
   }, [markers.length, hasModifications, currentGroupName]);
+
+  // Listen for sequential play trigger from header
+  useEffect(() => {
+    const subscription = subject
+      .pipe(filter(({ key }) => key === "TRIGGER_SEQUENTIAL_PLAY"))
+      .subscribe(() => {
+        handleSequentialPlay();
+      });
+
+    return () => subscription.unsubscribe();
+  }, [selectedMarkerIds, markers, isSequentialPlaying]);
 
   // Sync with canvas vertical scroll
   useEffect(() => {
@@ -431,6 +450,119 @@ const SelectionGroupOverlay = () => {
     }
   };
 
+  // Handle sequential play through markers
+  const handleSequentialPlay = () => {
+    // If already playing, pause
+    if (isSequentialPlaying) {
+      setIsSequentialPlaying(false);
+      sequentialPlayStateRef.current = null;
+      dispatch(PLAYER_PAUSE, { payload: {} });
+      dispatch("SEQUENTIAL_PLAY_STATE_CHANGED", {
+        payload: { isPlaying: false },
+      });
+      return;
+    }
+
+    // Only work with selected markers
+    if (selectedMarkerIds.length === 0) {
+      toast.error("No markers selected. Please select at least one marker.");
+      return;
+    }
+
+    const currentTime = getCurrentTime();
+
+    // Filter only selected markers and sort by start time
+    const selectedMarkers = markers.filter((m) =>
+      selectedMarkerIds.includes(m.id)
+    );
+    const sortedMarkers = [...selectedMarkers].sort(
+      (a, b) => a.startMs - b.startMs
+    );
+
+    // Find the current or next marker to play
+    let startIndex = sortedMarkers.findIndex(
+      (m) => currentTime >= m.startMs && currentTime <= m.endMs
+    );
+
+    // If not in any marker, find the next marker
+    if (startIndex === -1) {
+      startIndex = sortedMarkers.findIndex((m) => m.startMs > currentTime);
+      if (startIndex === -1) startIndex = 0; // Loop back to first
+    }
+
+    setIsSequentialPlaying(true);
+    sequentialPlayStateRef.current = {
+      currentIndex: startIndex,
+      sortedMarkers,
+      isPausing: false,
+    };
+
+    // Start playing from the marker
+    const marker = sortedMarkers[startIndex];
+    dispatch(PLAYER_SEEK, { payload: { time: marker.startMs } });
+    dispatch(PLAYER_PLAY, { payload: {} });
+    dispatch("SEQUENTIAL_PLAY_STATE_CHANGED", { payload: { isPlaying: true } });
+  };
+
+  // Monitor playback to handle sequential play
+  useEffect(() => {
+    if (!isSequentialPlaying || !sequentialPlayStateRef.current) return;
+
+    const interval = setInterval(() => {
+      const currentTime = getCurrentTime();
+      const state = sequentialPlayStateRef.current;
+      if (!state) return;
+
+      const currentMarker = state.sortedMarkers[state.currentIndex];
+
+      // Check if we've reached the end of current marker
+      if (currentTime >= currentMarker.endMs && !state.isPausing) {
+        state.isPausing = true;
+        dispatch(PLAYER_PAUSE, { payload: {} });
+
+        // Pause for 0.5s at the last frame
+        setTimeout(() => {
+          if (!sequentialPlayStateRef.current) return;
+
+          const nextIndex = state.currentIndex + 1;
+
+          // Check if there's a next marker
+          if (nextIndex < state.sortedMarkers.length) {
+            const nextMarker = state.sortedMarkers[nextIndex];
+            sequentialPlayStateRef.current = {
+              currentIndex: nextIndex,
+              sortedMarkers: state.sortedMarkers,
+              isPausing: false,
+            };
+
+            dispatch(PLAYER_SEEK, { payload: { time: nextMarker.startMs } });
+            dispatch(PLAYER_PLAY, { payload: {} });
+          } else {
+            // End of all markers
+            setIsSequentialPlaying(false);
+            sequentialPlayStateRef.current = null;
+            dispatch("SEQUENTIAL_PLAY_STATE_CHANGED", {
+              payload: { isPlaying: false },
+            });
+          }
+        }, 500);
+      }
+    }, 100); // Check every 100ms
+
+    return () => clearInterval(interval);
+  }, [isSequentialPlaying, markers]);
+
+  // Dispatch selected markers state for header button
+  useEffect(() => {
+    dispatch("SELECTED_MARKERS_CHANGED", {
+      payload: {
+        hasSelectedMarkers: selectedMarkerIds.length > 0,
+        count: selectedMarkerIds.length,
+        totalMarkers: markers.length,
+      },
+    });
+  }, [selectedMarkerIds, markers.length]);
+
   if (!timeline || !videoTrackInfo || markers.length === 0) {
     return null;
   }
@@ -504,6 +636,7 @@ const SelectionGroupOverlay = () => {
       {markers.map((marker) => {
         const left = timeMsToUnits(marker.startMs, scale.zoom) - scroll.left;
         const width = timeMsToUnits(marker.endMs - marker.startMs, scale.zoom);
+        const isSelected = selectedMarkerIds.includes(marker.id);
 
         return (
           <div
@@ -514,7 +647,9 @@ const SelectionGroupOverlay = () => {
               top: `${videoTrackInfo.top - verticalScroll}px`,
               width: `${width}px`,
               height: `${videoTrackInfo.height}px`,
-              border: "2px solid rgba(255, 255, 255, 0.9)",
+              border: `2px solid ${
+                isSelected ? "#fbbf24" : "rgba(255, 255, 255, 0.9)"
+              }`,
               borderRadius: "4px",
               pointerEvents: "auto",
               display: "flex",
@@ -524,6 +659,18 @@ const SelectionGroupOverlay = () => {
               cursor: "move",
               userSelect: "none",
               overflow: "hidden",
+              backgroundColor: isSelected
+                ? "rgba(251, 191, 36, 0.1)"
+                : "transparent",
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setSelectedMarkerIds((prev) =>
+                  isSelected
+                    ? prev.filter((id) => id !== marker.id)
+                    : [...prev, marker.id]
+                );
+              }
             }}
             onMouseDown={(e) => handleMouseDown(e, marker.id, "move")}
           >

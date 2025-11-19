@@ -1,20 +1,27 @@
 import { Button } from "@/components/ui/button";
-import { dispatch } from "@designcombo/events";
+import { dispatch, filter, subject } from "@designcombo/events";
 import {
   ACTIVE_SPLIT,
   LAYER_CLONE,
   LAYER_DELETE,
-  TIMELINE_SCALE_CHANGED
+  TIMELINE_SCALE_CHANGED,
 } from "@designcombo/state";
 import { PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
 import { frameToTimeString, getCurrentTime, timeToString } from "../utils/time";
 import useStore from "../store/use-store";
-import { SquareSplitHorizontal, Trash, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  SquareSplitHorizontal,
+  Trash,
+  ZoomIn,
+  ZoomOut,
+  Play,
+  Pause,
+} from "lucide-react";
 import {
   getFitZoomLevel,
   getNextZoomLevel,
   getPreviousZoomLevel,
-  getZoomByIndex
+  getZoomByIndex,
 } from "../utils/timeline";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
 import { Slider } from "@/components/ui/slider";
@@ -83,6 +90,9 @@ const IconPlayerSkipForward = ({ size }: { size: number }) => (
 );
 const Header = () => {
   const [playing, setPlaying] = useState(false);
+  const [sequentialPlaying, setSequentialPlaying] = useState(false);
+  const [hasSelectedMarkers, setHasSelectedMarkers] = useState(false);
+  const [hasMarkers, setHasMarkers] = useState(false);
   const { duration, fps, scale, playerRef, activeIds } = useStore();
   const isLargeScreen = useIsLargeScreen();
   useUpdateAnsestors({ playing, playerRef });
@@ -97,16 +107,16 @@ const Header = () => {
     dispatch(ACTIVE_SPLIT, {
       payload: {},
       options: {
-        time: getCurrentTime()
-      }
+        time: getCurrentTime(),
+      },
     });
   };
 
   const changeScale = (scale: ITimelineScaleState) => {
     dispatch(TIMELINE_SCALE_CHANGED, {
       payload: {
-        scale
-      }
+        scale,
+      },
     });
   };
 
@@ -116,6 +126,10 @@ const Header = () => {
 
   const handlePause = () => {
     dispatch(PLAYER_PAUSE);
+  };
+
+  const handleSequentialPlay = () => {
+    dispatch("TRIGGER_SEQUENTIAL_PLAY", { payload: {} });
   };
 
   useEffect(() => {
@@ -135,6 +149,29 @@ const Header = () => {
     };
   }, [playerRef]);
 
+  // Listen for sequential play state changes
+  useEffect(() => {
+    const subscription = subject
+      .pipe(filter(({ key }) => key === "SEQUENTIAL_PLAY_STATE_CHANGED"))
+      .subscribe((event: any) => {
+        setSequentialPlaying(event.value?.payload?.isPlaying || false);
+      });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Listen for selected markers changes
+  useEffect(() => {
+    const subscription = subject
+      .pipe(filter(({ key }) => key === "SELECTED_MARKERS_CHANGED"))
+      .subscribe((event: any) => {
+        setHasSelectedMarkers(
+          event.value?.payload?.hasSelectedMarkers || false
+        );
+        setHasMarkers(event.value?.payload?.totalMarkers > 0 || false);
+      });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const movePlayheadToTimelineCenter = useCallback(() => {
     if (!playerRef?.current) return;
     if (!fps || duration <= 0) return;
@@ -149,7 +186,7 @@ const Header = () => {
       style={{
         position: "relative",
         height: "50px",
-        flex: "none"
+        flex: "none",
       }}
     >
       <div
@@ -158,7 +195,7 @@ const Header = () => {
           height: 50,
           width: "100%",
           display: "flex",
-          alignItems: "center"
+          alignItems: "center",
         }}
       >
         <div
@@ -169,7 +206,7 @@ const Header = () => {
             gridTemplateColumns: isLargeScreen
               ? "1fr 260px 1fr"
               : "1fr 1fr 1fr",
-            alignItems: "center"
+            alignItems: "center",
           }}
         >
           <div className="flex px-2">
@@ -210,6 +247,15 @@ const Header = () => {
           <div className="flex items-center justify-center">
             <div>
               <Button
+                onClick={handleSequentialPlay}
+                disabled={!hasSelectedMarkers}
+                variant={"ghost"}
+                size={"icon"}
+                className="text-yellow-500 hover:text-yellow-600 hover:bg-yellow-500/10 disabled:opacity-40"
+              >
+                {sequentialPlaying ? <Pause size={14} /> : <Play size={14} />}
+              </Button>
+              <Button
                 className="hidden lg:inline-flex"
                 onClick={doActiveDelete}
                 variant={"ghost"}
@@ -248,14 +294,14 @@ const Header = () => {
                 alignItems: "center",
                 gridTemplateColumns: "54px 4px 54px",
                 paddingTop: "2px",
-                justifyContent: "center"
+                justifyContent: "center",
               }}
             >
               <div
                 className="font-medium text-zinc-200"
                 style={{
                   display: "flex",
-                  justifyContent: "center"
+                  justifyContent: "center",
                 }}
                 data-current-time={currentFrame / fps}
                 id="video-current-time"
@@ -267,7 +313,7 @@ const Header = () => {
                 className="text-muted-foreground hidden lg:block"
                 style={{
                   display: "flex",
-                  justifyContent: "center"
+                  justifyContent: "center",
                 }}
               >
                 {timeToString({ time: duration })}
@@ -291,7 +337,7 @@ const ZoomControl = ({
   scale,
   onChangeTimelineScale,
   duration,
-  onPlayheadCenter
+  onPlayheadCenter,
 }: {
   scale: ITimelineScaleState;
   onChangeTimelineScale: (scale: ITimelineScaleState) => void;
