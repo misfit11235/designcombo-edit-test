@@ -34,7 +34,7 @@ interface DragState {
 }
 
 const SelectionGroupOverlay = () => {
-  const { timeline, scale, scroll, fps } = useStore();
+  const { timeline, scale, scroll, fps, setScale, setScroll } = useStore();
   const [markers, setMarkers] = useState<SelectionMarker[]>([]);
   const [videoTrackInfo, setVideoTrackInfo] = useState<{
     top: number;
@@ -56,6 +56,15 @@ const SelectionGroupOverlay = () => {
     sortedMarkers: SelectionMarker[];
     isPausing: boolean;
   } | null>(null);
+
+  // Zoom state for pause-to-zoom feature
+  const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastDragPositionRef = useRef<{ x: number; time: number } | null>(null);
+  const originalZoomStateRef = useRef<{
+    zoom: number;
+    scrollLeft: number;
+  } | null>(null);
+  const isZoomedRef = useRef(false);
 
   // Get video track position and clear markers if video is deleted
   useEffect(() => {
@@ -312,6 +321,126 @@ const SelectionGroupOverlay = () => {
       dragStateRef.current;
     const deltaX = e.clientX - startX;
 
+    // Track mouse position and detect pause for zoom
+    const currentPosition = { x: e.clientX, time: Date.now() };
+
+    // Check if mouse has moved significantly since last check
+    const hasMovedSignificantly =
+      lastDragPositionRef.current &&
+      Math.abs(currentPosition.x - lastDragPositionRef.current.x) > 5;
+
+    // If moved significantly, clear timer and update position
+    if (hasMovedSignificantly) {
+      console.log("Mouse moved significantly, resetting timer");
+      if (pauseTimerRef.current) {
+        clearTimeout(pauseTimerRef.current);
+        pauseTimerRef.current = null;
+      }
+      lastDragPositionRef.current = currentPosition;
+    }
+
+    // If this is first movement or we've stopped moving, start/continue timer
+    if (!lastDragPositionRef.current) {
+      console.log("Starting pause detection");
+      lastDragPositionRef.current = currentPosition;
+    }
+
+    // Always set the timer if not already zoomed and only for resize operations
+    if (
+      !pauseTimerRef.current &&
+      !isZoomedRef.current &&
+      (type === "resize-left" || type === "resize-right")
+    ) {
+      console.log("Setting 2-second zoom timer");
+      pauseTimerRef.current = setTimeout(() => {
+        console.log("Timer fired! Attempting to zoom in");
+        if (!timeline || isZoomedRef.current) {
+          console.log("Cannot zoom:", {
+            hasTimeline: !!timeline,
+            isZoomed: isZoomedRef.current,
+          });
+          return;
+        }
+
+        console.log("Zooming in!");
+
+        // Store original zoom and scroll state
+        originalZoomStateRef.current = {
+          zoom: scale.zoom,
+          scrollLeft: scroll.left,
+        };
+
+        console.log("Original state stored:", originalZoomStateRef.current);
+
+        // Calculate the time position at the current drag point
+        const marker = markers.find((m) => m.id === markerId);
+        if (!marker) {
+          console.log("Marker not found!");
+          return;
+        }
+
+        let targetTimeMs: number;
+        if (type === "resize-left") {
+          targetTimeMs = marker.startMs;
+        } else if (type === "resize-right") {
+          targetTimeMs = marker.endMs;
+        } else {
+          targetTimeMs = marker.startMs;
+        }
+
+        // Zoom to maximum (10x current zoom)
+        const maxZoomValue = scale.zoom * 10;
+        const maxUnit = 1 / maxZoomValue;
+
+        console.log("Setting new zoom:", {
+          old: scale.zoom,
+          new: maxZoomValue,
+        });
+
+        // Calculate the current position of the handle in timeline units (before zoom)
+        const handlePositionInTimeline = timeMsToUnits(
+          targetTimeMs,
+          scale.zoom
+        );
+
+        // Calculate where the handle appears on screen (relative to timeline container)
+        const handleScreenPosition = handlePositionInTimeline - scroll.left;
+
+        // After zoom, calculate new position of the handle in timeline units
+        const newHandlePositionInTimeline = timeMsToUnits(
+          targetTimeMs,
+          maxZoomValue
+        );
+
+        // To keep the handle at the same screen position:
+        // newHandlePositionInTimeline - newScrollLeft = handleScreenPosition
+        // Therefore: newScrollLeft = newHandlePositionInTimeline - handleScreenPosition
+        const newScrollLeft =
+          newHandlePositionInTimeline - handleScreenPosition;
+
+        console.log("Scroll calculation:", {
+          targetTimeMs,
+          handlePositionInTimeline,
+          handleScreenPosition,
+          newHandlePositionInTimeline,
+          oldScroll: scroll.left,
+          newScroll: newScrollLeft,
+        });
+
+        setScale({
+          ...scale,
+          zoom: maxZoomValue,
+          unit: maxUnit,
+        });
+
+        setScroll({ left: Math.max(0, newScrollLeft), top: scroll.top });
+
+        isZoomedRef.current = true;
+        toast.info("Zoomed in for precise frame selection");
+        console.log("Zoom complete!");
+      }, 2000);
+    }
+
     let previewTime: number | null = null;
 
     setMarkers((prev) => {
@@ -412,6 +541,27 @@ const SelectionGroupOverlay = () => {
   };
 
   const handleMouseUp = () => {
+    // Clear any pending zoom timer
+    if (pauseTimerRef.current) {
+      clearTimeout(pauseTimerRef.current);
+      pauseTimerRef.current = null;
+    }
+
+    // Restore zoom if we zoomed in
+    if (isZoomedRef.current && originalZoomStateRef.current) {
+      setScale({
+        ...scale,
+        zoom: originalZoomStateRef.current.zoom,
+        unit: 1 / originalZoomStateRef.current.zoom,
+      });
+      setScroll({
+        left: originalZoomStateRef.current.scrollLeft,
+        top: scroll.top,
+      });
+      originalZoomStateRef.current = null;
+      isZoomedRef.current = false;
+    }
+
     if (dragStateRef.current) {
       dragStateRef.current = null;
 
@@ -421,6 +571,10 @@ const SelectionGroupOverlay = () => {
         originalTimeRef.current = null;
       }
     }
+
+    // Reset pause tracking
+    lastDragPositionRef.current = null;
+
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", handleMouseUp);
   };
