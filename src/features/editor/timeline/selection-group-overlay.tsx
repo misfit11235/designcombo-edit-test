@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PLAYER_SEEK } from "../constants/events";
+import { getCurrentTime } from "../utils/time";
 
 interface SelectionMarker {
   id: string;
@@ -31,7 +33,7 @@ interface DragState {
 }
 
 const SelectionGroupOverlay = () => {
-  const { timeline, scale, scroll } = useStore();
+  const { timeline, scale, scroll, fps } = useStore();
   const [markers, setMarkers] = useState<SelectionMarker[]>([]);
   const [videoTrackInfo, setVideoTrackInfo] = useState<{
     top: number;
@@ -39,6 +41,7 @@ const SelectionGroupOverlay = () => {
     videoItemId: string;
   } | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
+  const originalTimeRef = useRef<number | null>(null);
   const [verticalScroll, setVerticalScroll] = useState(0);
   const [currentGroupName, setCurrentGroupName] = useState<string>("");
   const [originalMarkers, setOriginalMarkers] = useState<SelectionMarker[]>([]);
@@ -215,7 +218,11 @@ const SelectionGroupOverlay = () => {
     const marker = markers.find((m) => m.id === markerId);
     if (!marker) return;
 
-    const left = timeMsToUnits(marker.startMs, scale.zoom);
+    // Store the current playhead time to restore later
+    originalTimeRef.current = getCurrentTime();
+
+    // Store the absolute position (including scroll) for accurate calculations
+    const left = timeMsToUnits(marker.startMs, scale.zoom) - scroll.left;
     const width = timeMsToUnits(marker.endMs - marker.startMs, scale.zoom);
 
     dragStateRef.current = {
@@ -237,6 +244,8 @@ const SelectionGroupOverlay = () => {
       dragStateRef.current;
     const deltaX = e.clientX - startX;
 
+    let previewTime: number | null = null;
+
     setMarkers((prev) => {
       // Sort markers by startMs to find adjacent markers
       const sortedMarkers = [...prev].sort((a, b) => a.startMs - b.startMs);
@@ -256,7 +265,8 @@ const SelectionGroupOverlay = () => {
 
         if (type === "move") {
           const newLeft = startLeft + deltaX;
-          const newStartMs = unitsToTimeMs(newLeft, scale.zoom);
+          // Add scroll.left to convert from screen position to timeline position
+          const newStartMs = unitsToTimeMs(newLeft + scroll.left, scale.zoom);
           const duration = marker.endMs - marker.startMs;
 
           // Constrain to not pass previous or next marker
@@ -273,6 +283,8 @@ const SelectionGroupOverlay = () => {
             constrainedStartMs = Math.min(constrainedStartMs, maxStartMs);
           }
 
+          previewTime = constrainedStartMs;
+
           return {
             ...marker,
             startMs: constrainedStartMs,
@@ -280,7 +292,8 @@ const SelectionGroupOverlay = () => {
           };
         } else if (type === "resize-left") {
           const newLeft = startLeft + deltaX;
-          const newStartMs = unitsToTimeMs(newLeft, scale.zoom);
+          // Add scroll.left to convert from screen position to timeline position
+          const newStartMs = unitsToTimeMs(newLeft + scroll.left, scale.zoom);
 
           // Constrain to not pass previous marker's end
           let constrainedStartMs = Math.max(0, newStartMs);
@@ -288,19 +301,28 @@ const SelectionGroupOverlay = () => {
             constrainedStartMs = Math.max(constrainedStartMs, prevMarker.endMs);
           }
 
+          const finalStartMs = Math.min(constrainedStartMs, marker.endMs - 100);
+          previewTime = finalStartMs;
+
           return {
             ...marker,
-            startMs: Math.min(constrainedStartMs, marker.endMs - 100),
+            startMs: finalStartMs,
           };
         } else if (type === "resize-right") {
           const newWidth = startWidth + deltaX;
-          const newEndMs = unitsToTimeMs(startLeft + newWidth, scale.zoom);
+          // Add scroll.left to convert from screen position to timeline position
+          const newEndMs = unitsToTimeMs(
+            startLeft + newWidth + scroll.left,
+            scale.zoom
+          );
 
           // Constrain to not pass next marker's start
           let constrainedEndMs = Math.max(marker.startMs + 100, newEndMs);
           if (nextMarker) {
             constrainedEndMs = Math.min(constrainedEndMs, nextMarker.startMs);
           }
+
+          previewTime = constrainedEndMs;
 
           return {
             ...marker,
@@ -311,11 +333,25 @@ const SelectionGroupOverlay = () => {
         return marker;
       });
     });
+
+    // Seek to the preview time, rounding to the nearest frame for pixel-perfect alignment
+    if (previewTime !== null) {
+      // Round to nearest frame to match playhead rendering
+      const frame = Math.round((previewTime * fps) / 1000);
+      const roundedTime = (frame / fps) * 1000;
+      dispatch(PLAYER_SEEK, { payload: { time: roundedTime } });
+    }
   };
 
   const handleMouseUp = () => {
     if (dragStateRef.current) {
       dragStateRef.current = null;
+
+      // Restore the original playhead position
+      if (originalTimeRef.current !== null) {
+        dispatch(PLAYER_SEEK, { payload: { time: originalTimeRef.current } });
+        originalTimeRef.current = null;
+      }
     }
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", handleMouseUp);
