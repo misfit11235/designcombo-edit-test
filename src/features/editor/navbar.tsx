@@ -6,13 +6,13 @@ import { Icons } from "@/components/shared/icons";
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger
+  PopoverTrigger,
 } from "@/components/ui/popover";
 import {
   ChevronDown,
   Download,
   ProportionsIcon,
-  ShareIcon
+  ShareIcon,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
@@ -26,7 +26,7 @@ import { debounce } from "lodash";
 import {
   useIsLargeScreen,
   useIsMediumScreen,
-  useIsSmallScreen
+  useIsSmallScreen,
 } from "@/hooks/use-media-query";
 
 import { LogoIcons } from "@/components/shared/logos";
@@ -36,7 +36,7 @@ export default function Navbar({
   user,
   stateManager,
   setProjectName,
-  projectName
+  projectName,
 }: {
   user: any | null;
   stateManager: StateManager;
@@ -80,7 +80,7 @@ export default function Navbar({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: isLargeScreen ? "320px 1fr 320px" : "1fr 1fr 1fr"
+        gridTemplateColumns: isLargeScreen ? "320px 1fr 320px" : "1fr 1fr 1fr",
       }}
       className="bg-muted pointer-events-none flex h-11 items-center border-b border-border/80 px-2"
     >
@@ -97,6 +97,7 @@ export default function Navbar({
             className="text-muted-foreground"
             variant="ghost"
             size="icon"
+            data-undo-button
           >
             <Icons.undo width={20} />
           </Button>
@@ -158,7 +159,7 @@ const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
   const handleExport = () => {
     const data: IDesign = {
       id: generateId(),
-      ...stateManager.toJSON()
+      ...stateManager.toJSON(),
     };
 
     console.log({ data });
@@ -244,8 +245,8 @@ const RESIZE_OPTIONS: ResizeOptionProps[] = [
     value: {
       width: 1920,
       height: 1080,
-      name: "16:9"
-    }
+      name: "16:9",
+    },
   },
   {
     label: "9:16",
@@ -254,8 +255,8 @@ const RESIZE_OPTIONS: ResizeOptionProps[] = [
     value: {
       width: 1080,
       height: 1920,
-      name: "9:16"
-    }
+      name: "9:16",
+    },
   },
   {
     label: "1:1",
@@ -264,17 +265,17 @@ const RESIZE_OPTIONS: ResizeOptionProps[] = [
     value: {
       width: 1080,
       height: 1080,
-      name: "1:1"
-    }
-  }
+      name: "1:1",
+    },
+  },
 ];
 
 const ResizeVideo = () => {
   const handleResize = (options: ResizeValue) => {
     dispatch(DESIGN_RESIZE, {
       payload: {
-        ...options
-      }
+        ...options,
+      },
     });
   };
   return (
@@ -308,7 +309,7 @@ const ResizeOption = ({
   icon,
   value,
   description,
-  handleResize
+  handleResize,
 }: ResizeOptionProps & { handleResize: (payload: ResizeValue) => void }) => {
   const Icon = Icons[icon as "text"];
   return (

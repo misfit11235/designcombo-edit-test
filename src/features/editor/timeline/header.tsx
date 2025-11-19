@@ -93,6 +93,7 @@ const Header = () => {
   const [sequentialPlaying, setSequentialPlaying] = useState(false);
   const [hasSelectedMarkers, setHasSelectedMarkers] = useState(false);
   const [hasMarkers, setHasMarkers] = useState(false);
+  const [showYellowButton, setShowYellowButton] = useState(false);
   const { duration, fps, scale, playerRef, activeIds } = useStore();
   const isLargeScreen = useIsLargeScreen();
   useUpdateAnsestors({ playing, playerRef });
@@ -100,7 +101,13 @@ const Header = () => {
   const currentFrame = useCurrentPlayerFrame(playerRef);
 
   const doActiveDelete = () => {
-    dispatch(LAYER_DELETE);
+    // If there are selected markers, delete them
+    if (hasSelectedMarkers) {
+      dispatch("DELETE_SELECTED_MARKERS", { payload: {} });
+    } else {
+      // Otherwise, delete active timeline items
+      dispatch(LAYER_DELETE);
+    }
   };
 
   const doActiveSplit = () => {
@@ -167,7 +174,9 @@ const Header = () => {
         setHasSelectedMarkers(
           event.value?.payload?.hasSelectedMarkers || false
         );
-        setHasMarkers(event.value?.payload?.totalMarkers > 0 || false);
+        const totalMarkers = event.value?.payload?.totalMarkers || 0;
+        setHasMarkers(totalMarkers > 0);
+        setShowYellowButton(totalMarkers > 0);
       });
     return () => subscription.unsubscribe();
   }, []);
@@ -180,6 +189,65 @@ const Header = () => {
     const middleFrame = Math.round((middleTimeMs / 1000) * fps);
     playerRef.current.seekTo(middleFrame);
   }, [playerRef, fps, duration]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    let lastSpacePress = 0;
+    const DOUBLE_PRESS_DELAY = 300; // ms
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      // Space for regular play/pause (single press) or yellow play (double press)
+      if (e.code === "Space") {
+        e.preventDefault();
+        const now = Date.now();
+
+        if (now - lastSpacePress < DOUBLE_PRESS_DELAY) {
+          // Double press - trigger yellow play
+          if (hasSelectedMarkers) {
+            handleSequentialPlay();
+          }
+          lastSpacePress = 0; // Reset
+        } else {
+          // Single press - trigger regular play/pause after delay
+          lastSpacePress = now;
+          setTimeout(() => {
+            if (Date.now() - lastSpacePress >= DOUBLE_PRESS_DELAY) {
+              if (playing) {
+                handlePause();
+              } else {
+                handlePlay();
+              }
+            }
+          }, DOUBLE_PRESS_DELAY);
+        }
+      }
+
+      // Cmd+Z for undo (go back)
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        // Trigger undo action - assuming there's a button that exists
+        const undoButton = document.querySelector(
+          "[data-undo-button]"
+        ) as HTMLButtonElement;
+        if (undoButton) {
+          undoButton.click();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [playing, hasSelectedMarkers]);
 
   return (
     <div
@@ -211,7 +279,7 @@ const Header = () => {
         >
           <div className="flex px-2">
             <Button
-              disabled={!activeIds.length}
+              disabled={!activeIds.length && !hasSelectedMarkers}
               onClick={doActiveDelete}
               variant={"ghost"}
               size={isLargeScreen ? "sm" : "icon"}
@@ -246,15 +314,17 @@ const Header = () => {
           </div>
           <div className="flex items-center justify-center">
             <div>
-              <Button
-                onClick={handleSequentialPlay}
-                disabled={!hasSelectedMarkers}
-                variant={"ghost"}
-                size={"icon"}
-                className="text-yellow-500 hover:text-yellow-600 hover:bg-yellow-500/10 disabled:opacity-40"
-              >
-                {sequentialPlaying ? <Pause size={14} /> : <Play size={14} />}
-              </Button>
+              {showYellowButton && (
+                <Button
+                  onClick={handleSequentialPlay}
+                  disabled={!hasMarkers || !hasSelectedMarkers}
+                  variant={"ghost"}
+                  size={"icon"}
+                  className="text-yellow-500 hover:text-yellow-600 hover:bg-yellow-500/10 disabled:opacity-40"
+                >
+                  {sequentialPlaying ? <Pause size={14} /> : <Play size={14} />}
+                </Button>
+              )}
               <Button
                 className="hidden lg:inline-flex"
                 onClick={doActiveDelete}

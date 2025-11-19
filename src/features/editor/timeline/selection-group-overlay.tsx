@@ -203,6 +203,21 @@ const SelectionGroupOverlay = () => {
     return () => subscription.unsubscribe();
   }, [selectedMarkerIds, markers, isSequentialPlaying]);
 
+  // Listen for delete selected markers trigger from header
+  useEffect(() => {
+    const subscription = subject
+      .pipe(filter(({ key }) => key === "DELETE_SELECTED_MARKERS"))
+      .subscribe(() => {
+        // Remove selected markers
+        const newMarkers = markers.filter(m => !selectedMarkerIds.includes(m.id));
+        setMarkers(newMarkers);
+        setSelectedMarkerIds([]);
+        toast.success(`Deleted ${selectedMarkerIds.length} marker${selectedMarkerIds.length > 1 ? 's' : ''}`);
+      });
+
+    return () => subscription.unsubscribe();
+  }, [selectedMarkerIds, markers]);
+
   // Sync with canvas vertical scroll
   useEffect(() => {
     if (!timeline) return;
@@ -387,7 +402,11 @@ const SelectionGroupOverlay = () => {
       return;
     }
 
-    const modified = markers.some((marker) => {
+    // Check if markers have been added or deleted
+    const countChanged = markers.length !== originalMarkers.length;
+    
+    // Check if any marker positions have changed
+    const modified = countChanged || markers.some((marker) => {
       const original = originalMarkers.find((m) => m.id === marker.id);
       if (!original) return true;
       return (
