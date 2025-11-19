@@ -2,6 +2,11 @@ import { useEffect, useState, useRef } from "react";
 import { filter, subject } from "@designcombo/events";
 import useStore from "../store/use-store";
 import { timeMsToUnits, unitsToTimeMs } from "@designcombo/timeline";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface SelectionMarker {
   id: string;
@@ -30,6 +35,11 @@ const SelectionGroupOverlay = () => {
   } | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const [verticalScroll, setVerticalScroll] = useState(0);
+  const [currentGroupName, setCurrentGroupName] = useState<string>("");
+  const [originalMarkers, setOriginalMarkers] = useState<SelectionMarker[]>([]);
+  const [hasModifications, setHasModifications] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveDialogName, setSaveDialogName] = useState("");
 
   // Get video track position and clear markers if video is deleted
   useEffect(() => {
@@ -107,6 +117,9 @@ const SelectionGroupOverlay = () => {
         const groupData = event.value?.payload;
         if (!groupData) return;
 
+        // Store the original group name
+        setCurrentGroupName(groupData.name || "");
+
         // Parse timeframes
         let timeframes = groupData.timeframes;
         if (typeof timeframes === "string") {
@@ -138,6 +151,8 @@ const SelectionGroupOverlay = () => {
         }
 
         setMarkers(newMarkers);
+        setOriginalMarkers(JSON.parse(JSON.stringify(newMarkers))); // Deep copy
+        setHasModifications(false);
       });
 
     return () => subscription.unsubscribe();
@@ -281,6 +296,72 @@ const SelectionGroupOverlay = () => {
     }
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", handleMouseUp);
+  };
+
+  // Check for modifications whenever markers change
+  useEffect(() => {
+    if (originalMarkers.length === 0 || markers.length === 0) {
+      setHasModifications(false);
+      return;
+    }
+
+    const modified = markers.some((marker) => {
+      const original = originalMarkers.find((m) => m.id === marker.id);
+      if (!original) return true;
+      return (
+        original.startMs !== marker.startMs || original.endMs !== marker.endMs
+      );
+    });
+
+    setHasModifications(modified);
+  }, [markers, originalMarkers]);
+
+  // Handle opening save dialog
+  const handleOpenSaveDialog = () => {
+    setSaveDialogName(currentGroupName);
+    setShowSaveDialog(true);
+  };
+
+  // Handle save selection group
+  const handleSave = async () => {
+    if (!saveDialogName.trim()) {
+      return;
+    }
+
+    // Convert markers back to timeframes format with start/end objects
+    const timeframes: Record<string, { start: number; end: number }> = {};
+    markers.forEach((marker) => {
+      timeframes[marker.label] = {
+        start: marker.startMs / 1000,
+        end: marker.endMs / 1000,
+      };
+    });
+
+    try {
+      const response = await fetch("/api/uploads/selection-groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: saveDialogName.trim(),
+          timeframes,
+        }),
+      });
+
+      if (response.ok) {
+        // Update original markers to match current state
+        setOriginalMarkers(JSON.parse(JSON.stringify(markers)));
+        setHasModifications(false);
+        setCurrentGroupName(saveDialogName.trim());
+        setShowSaveDialog(false);
+        toast.success("Selection group saved successfully!");
+      } else {
+        const error = await response.json();
+        toast.error(`Failed to save: ${error.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      toast.error("Failed to save selection group");
+    }
   };
 
   if (!timeline || !videoTrackInfo || markers.length === 0) {
@@ -427,6 +508,60 @@ const SelectionGroupOverlay = () => {
           </div>
         );
       })}
+
+      {/* Save button - only show when modifications exist */}
+      {hasModifications && (
+        <Button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenSaveDialog();
+          }}
+          style={{
+            position: "fixed",
+            top: videoTrackInfo.top - verticalScroll + 12,
+            right: 24,
+            zIndex: 9998,
+            pointerEvents: "auto",
+          }}
+          size="sm"
+          className="shadow-lg"
+        >
+          Save Selection Group
+        </Button>
+      )}
+
+      {/* Save dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>Save Selection Group</DialogTitle>
+          <DialogDescription className="hidden" />
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="group-name">Group Name</Label>
+              <Input
+                id="group-name"
+                value={saveDialogName}
+                onChange={(e) => setSaveDialogName(e.target.value)}
+                placeholder="Enter group name"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && saveDialogName.trim()) {
+                    handleSave();
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={!saveDialogName.trim()}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
