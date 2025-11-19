@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ADD_AUDIO, ADD_IMAGE, ADD_VIDEO } from "@designcombo/state";
-import { dispatch } from "@designcombo/events";
+import { dispatch, filter, subject } from "@designcombo/events";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import {
@@ -121,6 +121,8 @@ export const Uploads = () => {
   const [selectionGroupsError, setSelectionGroupsError] = useState<
     string | null
   >(null);
+  const [hasSelectionGroupModifications, setHasSelectionGroupModifications] =
+    useState(false);
 
   const fetchSelectionGroups = useCallback(async () => {
     setSelectionGroupsLoading(true);
@@ -149,6 +151,21 @@ export const Uploads = () => {
       fetchSelectionGroups();
     }
   }, [selectionModalOpen, fetchSelectionGroups]);
+
+  // Listen for selection group modifications state
+  useEffect(() => {
+    const subscription = subject
+      .pipe(
+        filter(({ key }) => key === "SELECTION_GROUP_MODIFICATIONS_CHANGED")
+      )
+      .subscribe((event: any) => {
+        const hasModifications =
+          event.value?.payload?.hasModifications ?? false;
+        setHasSelectionGroupModifications(hasModifications);
+      });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Group completed uploads by type
   const videos = uploads.filter(
@@ -236,6 +253,16 @@ export const Uploads = () => {
         onClick={onLoadSelectionGroups}
       >
         <span className="ml-2">Load selection groups</span>
+      </Button>
+      <Button
+        className="w-full cursor-pointer"
+        variant={hasSelectionGroupModifications ? "default" : "outline"}
+        disabled={!hasSelectionGroupModifications}
+        onClick={() => {
+          dispatch("SAVE_SELECTION_GROUP", { payload: {} });
+        }}
+      >
+        <span className="ml-2">Save selection group</span>
       </Button>
     </div>
   );

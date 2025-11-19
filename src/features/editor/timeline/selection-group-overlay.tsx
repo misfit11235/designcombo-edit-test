@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { filter, subject } from "@designcombo/events";
+import { filter, subject, dispatch } from "@designcombo/events";
 import useStore from "../store/use-store";
 import { timeMsToUnits, unitsToTimeMs } from "@designcombo/timeline";
 import { Button } from "@/components/ui/button";
@@ -136,6 +136,10 @@ const SelectionGroupOverlay = () => {
           }
         }
 
+        // Clear existing markers first
+        setMarkers([]);
+        setOriginalMarkers([]);
+
         // Convert to markers
         const newMarkers: SelectionMarker[] = [];
 
@@ -155,6 +159,7 @@ const SelectionGroupOverlay = () => {
           });
         }
 
+        // Set new markers
         setMarkers(newMarkers);
         setOriginalMarkers(JSON.parse(JSON.stringify(newMarkers))); // Deep copy
         setHasModifications(false);
@@ -162,6 +167,19 @@ const SelectionGroupOverlay = () => {
 
     return () => subscription.unsubscribe();
   }, [videoTrackInfo]);
+
+  // Listen for save selection group trigger event
+  useEffect(() => {
+    const subscription = subject
+      .pipe(filter(({ key }) => key === "SAVE_SELECTION_GROUP"))
+      .subscribe(() => {
+        if (markers.length > 0 && hasModifications) {
+          handleOpenSaveDialog();
+        }
+      });
+
+    return () => subscription.unsubscribe();
+  }, [markers.length, hasModifications, currentGroupName]);
 
   // Sync with canvas vertical scroll
   useEffect(() => {
@@ -307,6 +325,10 @@ const SelectionGroupOverlay = () => {
   useEffect(() => {
     if (originalMarkers.length === 0 || markers.length === 0) {
       setHasModifications(false);
+      // Dispatch state update
+      dispatch("SELECTION_GROUP_MODIFICATIONS_CHANGED", {
+        payload: { hasModifications: false },
+      });
       return;
     }
 
@@ -319,6 +341,10 @@ const SelectionGroupOverlay = () => {
     });
 
     setHasModifications(modified);
+    // Dispatch state update
+    dispatch("SELECTION_GROUP_MODIFICATIONS_CHANGED", {
+      payload: { hasModifications: modified },
+    });
   }, [markers, originalMarkers]);
 
   // Handle opening save dialog
@@ -506,6 +532,7 @@ const SelectionGroupOverlay = () => {
                 fontWeight: 600,
                 fontFamily: "Inter, sans-serif",
                 pointerEvents: "none",
+                marginLeft: "6px",
               }}
             >
               {marker.label}
@@ -513,27 +540,6 @@ const SelectionGroupOverlay = () => {
           </div>
         );
       })}
-
-      {/* Save button - only show when modifications exist */}
-      {hasModifications && (
-        <Button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpenSaveDialog();
-          }}
-          style={{
-            position: "fixed",
-            top: videoTrackInfo.top - verticalScroll + 12,
-            right: 24,
-            zIndex: 9998,
-            pointerEvents: "auto",
-          }}
-          size="sm"
-          className="shadow-lg"
-        >
-          Save Selection Group
-        </Button>
-      )}
 
       {/* Save dialog */}
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
