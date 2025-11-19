@@ -4,7 +4,12 @@ import useStore from "../store/use-store";
 import { timeMsToUnits, unitsToTimeMs } from "@designcombo/timeline";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -552,7 +557,10 @@ const SelectionGroupOverlay = () => {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowSaveDialog(false)}
+              >
                 Cancel
               </Button>
               <Button onClick={handleSave} disabled={!saveDialogName.trim()}>
